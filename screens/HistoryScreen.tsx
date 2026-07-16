@@ -12,14 +12,15 @@ import {
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { getScreeningSessions, getPatientById, Patient, ScreeningSession } from '../database/database';
+import { useAppNavigation } from '../navigation/NavigationContext';
 
 interface HistoryScreenProps {
-  navigate: (screen: string, params?: any) => void;
   params: { patientId: number };
   isActive: boolean;
 }
 
-export default function HistoryScreen({ navigate, params, isActive }: HistoryScreenProps) {
+export default function HistoryScreen({ params, isActive }: HistoryScreenProps) {
+  const { navigate } = useAppNavigation();
   const { patientId } = params;
   const [patient, setPatient] = useState<Patient | null>(null);
   const [sessions, setSessions] = useState<ScreeningSession[]>([]);
@@ -80,9 +81,9 @@ export default function HistoryScreen({ navigate, params, isActive }: HistoryScr
       }
 
       const formattedAnswers = answersList.map((ans: any, idx: number) => `
-        <tr style="border-bottom: 1px solid #e2e8f0;">
-          <td style="padding: 8px; font-size: 11px;">${idx + 1}. ${ans.question}</td>
-          <td style="padding: 8px; font-size: 11px; font-weight: bold; text-align: right; color: ${ans.score === 1 ? '#ef4444' : '#10b981'};">
+        <tr>
+          <td style="padding: 6px 0; border-bottom: 1px solid #f1f5f9; color: #334155;">${idx + 1}. ${ans.question}</td>
+          <td style="padding: 6px 0; border-bottom: 1px solid #f1f5f9; font-weight: bold; text-align: right; color: ${ans.score === 1 ? '#ef4444' : '#10b981'};">
             ${ans.score === 1 ? 'Ya (Anomali)' : 'Tidak (Normal)'}
           </td>
         </tr>
@@ -101,84 +102,104 @@ export default function HistoryScreen({ navigate, params, isActive }: HistoryScr
       const htmlContent = `
         <html>
           <head>
+            <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <style>
-              body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1e293b; padding: 25px; line-height: 1.5; }
-              .header { border-bottom: 3px solid #4f46e5; padding-bottom: 15px; margin-bottom: 20px; }
-              .app-logo { font-size: 14px; font-weight: bold; color: #4f46e5; text-transform: uppercase; margin-bottom: 5px; }
-              .title { font-size: 20px; font-weight: 800; color: #0f172a; margin: 0; }
+              body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1e293b; padding: 30px; line-height: 1.6; font-size: 12px; }
+              .header { border-bottom: 4px solid #4f46e5; padding-bottom: 15px; margin-bottom: 20px; }
+              .app-logo { font-size: 12px; font-weight: 800; color: #4f46e5; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+              .title { font-size: 20px; font-weight: 900; color: #0f172a; margin: 0; }
               .date { font-size: 11px; color: #64748b; margin-top: 4px; }
-              .section-title { font-size: 13px; font-weight: bold; text-transform: uppercase; color: #475569; letter-spacing: 0.5px; border-bottom: 1px solid #cbd5e1; padding-bottom: 5px; margin-top: 25px; margin-bottom: 12px; }
+              .section-title { font-size: 13px; font-weight: bold; text-transform: uppercase; color: #1e293b; letter-spacing: 0.5px; border-bottom: 2px solid #cbd5e1; padding-bottom: 5px; margin-top: 25px; margin-bottom: 12px; }
+              .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+              .meta-table td { padding: 4px 0; vertical-align: top; }
+              .meta-label { font-weight: bold; color: #475569; width: 140px; }
+              .meta-value { color: #1e293b; }
+              .badge { padding: 4px 10px; border-radius: 12px; font-weight: bold; display: inline-block; font-size: 10px; text-transform: uppercase; }
               .table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-              .table th { background: #f1f5f9; text-align: left; font-weight: bold; color: #475569; }
-              .table th, .table td { border: 1px solid #e2e8f0; padding: 10px; font-size: 12px; }
-              .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px; }
-              .meta-item { font-size: 12px; }
-              .meta-label { font-weight: bold; color: #64748b; }
-              .badge { padding: 6px 12px; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 11px; text-transform: uppercase; }
-              .recommendation-box { background: #f8fafc; border-left: 4px solid #4f46e5; padding: 12px; border-radius: 0 8px 8px 0; font-size: 11px; color: #334155; white-space: pre-line; }
+              .table th { background: #f1f5f9; text-align: left; font-weight: bold; color: #475569; border: 1px solid #e2e8f0; padding: 8px 10px; }
+              .table td { border: 1px solid #e2e8f0; padding: 8px 10px; vertical-align: top; }
+              .recommendation-card { background: #f8fafc; border-left: 4px solid #4f46e5; padding: 12px; border-radius: 0 8px 8px 0; font-size: 12px; color: #334155; white-space: pre-line; }
+              .disclaimer-card { background-color: #fff5f5; border: 1px solid #feb2b2; border-radius: 8px; padding: 12px; margin-top: 25px; color: #c53030; font-size: 10px; }
+              .disclaimer-title { font-weight: bold; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px; }
+              .footer-note { margin-top: 40px; font-size: 9px; color: #94a3b8; text-align: center; border-top: 1px dashed #e2e8f0; padding-top: 12px; }
             </style>
           </head>
           <body>
             <div class="header">
-              <div class="app-logo">Nura-App Local AI Visual Scanner</div>
+              <div class="app-logo">Nura App Local AI Visual Scanner</div>
               <div class="title">LAPORAN HASIL SKRINING GIZI & STUNTING</div>
-              <div class="date">Waktu Pemeriksaan: ${formattedDate} | ID: #NS-${session.id}</div>
+              <div class="date">Waktu Pemeriksaan: ${formattedDate} WIB | ID Laporan: #NS-${session.id}</div>
             </div>
 
-            <div class="meta-grid">
-              <div class="meta-item">
-                <span class="meta-label">Nama Lengkap:</span> ${patient.nama_pasien}<br/>
-                <span class="meta-label">Jenis Kelamin:</span> ${patient.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan'}<br/>
-                <span class="meta-label">Tanggal Lahir:</span> ${patient.tanggal_lahir}
-              </div>
-              <div class="meta-item">
-                <span class="meta-label">Usia Skrining:</span> ${session.usia_tahun} Tahun ${session.usia_bulan} Bulan<br/>
-                <span class="meta-label">Tingkat Risiko:</span> 
-                <span class="badge" style="background-color: ${riskBg}; color: ${riskColor};">${session.level_risiko}</span>
-              </div>
-            </div>
+            <table class="meta-table">
+              <tr>
+                <td class="meta-label">Nama Lengkap Pasien</td>
+                <td class="meta-value">: ${patient.nama_pasien}</td>
+                <td class="meta-label" style="text-align: right; width: 160px;">Tingkat Risiko Gizi</td>
+                <td class="meta-value" style="text-align: right; width: 120px;">
+                  : <span class="badge" style="background-color: ${riskBg}; color: ${riskColor};">${session.level_risiko}</span>
+                </td>
+              </tr>
+              <tr>
+                <td class="meta-label">Jenis Kelamin</td>
+                <td class="meta-value">: ${patient.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan'}</td>
+                <td class="meta-label" style="text-align: right;">Usia Saat Skrining</td>
+                <td class="meta-value" style="text-align: right;">: ${session.usia_tahun} Tahun ${session.usia_bulan} Bulan</td>
+              </tr>
+              <tr>
+                <td class="meta-label">Tanggal Lahir</td>
+                <td class="meta-value">: ${patient.tanggal_lahir}</td>
+                <td></td>
+                <td></td>
+              </tr>
+            </table>
 
-            <div class="section-title">Hasil Pemeriksaan Visual AI</div>
+            <div class="section-title">Hasil Analisis Visual AI (On-Device Scanner)</div>
             <table class="table">
               <thead>
                 <tr>
                   <th style="width: 30%;">Kanal Sensoris</th>
-                  <th style="width: 70%;">Hasil Analisis AI</th>
+                  <th style="width: 70%;">Hasil Analisis Deteksi AI</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td style="font-weight: bold;">Mata (Konjungtiva)</td>
+                  <td style="font-weight: bold;">👁️ Konjungtiva Mata</td>
                   <td>${session.analisis_mata}</td>
                 </tr>
                 <tr>
-                  <td style="font-weight: bold;">Kuku Jari</td>
+                  <td style="font-weight: bold;">💅 Kuku Jari Tangan</td>
                   <td>${session.analisis_kuku}</td>
                 </tr>
                 <tr>
-                  <td style="font-weight: bold;">Wajah & Kulit</td>
+                  <td style="font-weight: bold;">👤 Wajah & Kulit</td>
                   <td>${session.analisis_muka}</td>
                 </tr>
               </tbody>
             </table>
 
-            <div class="section-title">Jawaban Kuesioner Anomali</div>
-            <table style="width: 100%; border-collapse: collapse;">
+            <div class="section-title">Evaluasi Kuesioner Pendukung</div>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 5px;">
               ${formattedAnswers}
             </table>
 
             <div class="section-title">Sintesis Diagnosis & Rekomendasi Nutrisi</div>
-            <div class="recommendation-box">
-              <strong>Kesimpulan:</strong>
-              ${session.analisis_gabungan}
+            <div class="recommendation-card">
+              <strong style="font-size: 13px; color: #1e293b; display: block; margin-bottom: 6px;">Ringkasan Kondisi:</strong>
+              <span style="display: block; margin-bottom: 12px;">${session.analisis_gabungan}</span>
 
-              <strong>Rekomendasi Tindakan:</strong>
-              ${session.rekomendasi}
+              <strong style="font-size: 13px; color: #1e293b; display: block; margin-bottom: 6px;">Rekomendasi Tindakan & Gizi:</strong>
+              <span>${session.rekomendasi}</span>
+            </div>
+
+            <div class="disclaimer-card">
+              <div class="disclaimer-title">⚠️ Disclaimer Medis Penting</div>
+              Laporan ini dihasilkan secara otomatis menggunakan model kecerdasan buatan (AI) lokal di dalam aplikasi Nura App. Hasil pemindaian dan saran nutrisi di atas bersifat sebagai langkah skrining awal (early screening) untuk mendeteksi risiko stunting dan anemia. Dokumen ini BUKAN merupakan diagnosis medis formal. Konsultasikan hasil ini dengan dokter anak, bidan, atau petugas Puskesmas setempat untuk pemeriksaan klinis lebih lanjut.
             </div>
             
-            <div style="margin-top: 40px; font-size: 10px; color: #94a3b8; text-align: center; border-top: 1px dashed #e2e8f0; padding-top: 10px;">
-              Dokumen ini dihasilkan secara lokal oleh Nura App Mobile AI. Tidak memerlukan koneksi internet.
+            <div class="footer-note">
+              Dokumen ini diproses dan ditandatangani secara digital oleh mesin AI Nura App pada perangkat seluler secara offline (tanpa koneksi internet).
             </div>
           </body>
         </html>

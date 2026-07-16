@@ -11,13 +11,14 @@ import {
   StatusBar
 } from 'react-native';
 import { getPatients, Patient } from '../database/database';
+import { useAppNavigation } from '../navigation/NavigationContext';
 
 interface HomeScreenProps {
-  navigate: (screen: string, params?: any) => void;
   isActive: boolean;
 }
 
-export default function HomeScreen({ navigate, isActive }: HomeScreenProps) {
+export default function HomeScreen({ isActive }: HomeScreenProps) {
+  const { navigate } = useAppNavigation();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);

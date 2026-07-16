@@ -1,4 +1,4 @@
-# Blueprint: Offline-First Local AI Mental Health Scanner (React Native)
+# Blueprint: Offline-First Local AI Malnutrition & Stunting Scanner (React Native)
 
 This document provides a comprehensive technical specification to build a completely offline-first, local AI-powered mobile application in **React Native** that ports the Laravel-based visual and questionnaire screening capabilities. The app does not require a backend or user registration, handling all database storage, image processing, and AI visual inference directly on the mobile device.
 
@@ -167,8 +167,8 @@ const generateLocalPdf = async (scanData, patient) => {
             </head>
             <body>
                 <div class="header">
-                    <div class="title">LAPORAN MEDIS KESEHATAN MENTAL ANAK</div>
-                    <p>ID Pemeriksaan: #MS-${scanData.id}</p>
+                    <div class="title">LAPORAN HASIL SKRINING GIZI & STUNTING</div>
+                    <p>ID Pemeriksaan: #NS-${scanData.id}</p>
                 </div>
                 <h3>Profil Pasien</h3>
                 <p>Nama: ${patient.nama_pasien}</p>

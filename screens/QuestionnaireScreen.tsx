@@ -11,9 +11,9 @@ import {
   Alert
 } from 'react-native';
 import { getPatientById, Patient } from '../database/database';
+import { useAppNavigation } from '../navigation/NavigationContext';
 
 interface QuestionnaireScreenProps {
-  navigate: (screen: string, params?: any) => void;
   params: { patientId: number };
   isActive: boolean;
 }
@@ -24,7 +24,8 @@ interface Question {
   answer: number; // -1: unanswered, 0: No, 1: Yes
 }
 
-export default function QuestionnaireScreen({ navigate, params, isActive }: QuestionnaireScreenProps) {
+export default function QuestionnaireScreen({ params, isActive }: QuestionnaireScreenProps) {
+  const { navigate } = useAppNavigation();
   const { patientId } = params;
   const [patient, setPatient] = useState<Patient | null>(null);
   const [loading, setLoading] = useState(true);
@@ -94,10 +95,10 @@ export default function QuestionnaireScreen({ navigate, params, isActive }: Ques
         } else {
           cat = 'Remaja / Dewasa (>12 Tahun)';
           qList = [
-            "Merasa gugup, cemas, atau sangat gelisah dalam 2 minggu terakhir?",
-            "Merasa murung, sedih, putus asa, atau kehilangan minat beraktivitas?",
-            "Mengalami gangguan tidur (susah tidur atau tidur berlebihan)?",
-            "Kurang bertenaga, lemas, atau kesulitan berkonsentrasi melakukan sesuatu?"
+            "Apakah Anda sering merasa sangat lemas, cepat lelah, lemas, atau mengantuk sepanjang hari?",
+            "Apakah Anda mengalami penurunan berat badan drastis secara tidak sehat dalam beberapa bulan terakhir?",
+            "Apakah Anda sering melewatkan makan utama atau sangat jarang mengonsumsi makanan kaya zat besi/protein (seperti daging, telur, sayur hijau)?",
+            "Apakah Anda sering mengalami pusing, mata berkunang-kunang, atau kulit/wajah terlihat pucat?"
           ];
         }
 

@@ -12,12 +12,10 @@ import {
   Alert
 } from 'react-native';
 import { addPatient } from '../database/database';
+import { useAppNavigation } from '../navigation/NavigationContext';
 
-interface ProfileScreenProps {
-  navigate: (screen: string, params?: any) => void;
-}
-
-export default function ProfileScreen({ navigate }: ProfileScreenProps) {
+export default function ProfileScreen() {
+  const { navigate } = useAppNavigation();
   const [nama, setNama] = useState('');
   const [gender, setGender] = useState<'L' | 'P' | null>(null);
   

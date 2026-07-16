@@ -16,12 +16,13 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { analyzeEyes, analyzeNails, analyzeFace, isBypassMode, setBypassMode } from '../ai/onnxRunner';
 import { addScreeningSession } from '../database/database';
+import { useAppNavigation } from '../navigation/NavigationContext';
+import { isModelDownloaded, createModelDownloadResumable } from '../ai/modelDownloader';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const overlaySize = screenWidth * 0.75;
 
 interface ScannerScreenProps {
-  navigate: (screen: string, params?: any) => void;
   params: {
     patientId: number;
     usiaTahun: number;
@@ -33,7 +34,8 @@ interface ScannerScreenProps {
   isActive: boolean;
 }
 
-export default function ScannerScreen({ navigate, params, isActive }: ScannerScreenProps) {
+export default function ScannerScreen({ params, isActive }: ScannerScreenProps) {
+  const { navigate } = useAppNavigation();
   const { patientId, usiaTahun, usiaBulan, score: questionnaireScore, answersJson, parentalNotes } = params;
   
   const [permission, requestPermission] = useCameraPermissions();
@@ -51,12 +53,19 @@ export default function ScannerScreen({ navigate, params, isActive }: ScannerScr
   const [faceAnalysis, setFaceAnalysis] = useState('');
   
   const [isBypass, setIsBypass] = useState(isBypassMode());
+  const [downloadingModel, setDownloadingModel] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [modelReady, setModelReady] = useState(false);
   const cameraRef = useRef<any>(null);
 
   // Scanning animation
   const scanLineAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    async function checkModel() {
+      const downloaded = await isModelDownloaded();
+      setModelReady(downloaded);
+    }
     if (isActive) {
       // Reset scanning steps
       setCurrentStep(1);
@@ -64,6 +73,9 @@ export default function ScannerScreen({ navigate, params, isActive }: ScannerScr
       setEyePhotoPath(null);
       setNailPhotoPath(null);
       setFacePhotoPath(null);
+      
+      // Check model download status
+      checkModel();
       
       // Start scanning animation loop
       startScanningAnimation();
@@ -114,14 +126,84 @@ export default function ScannerScreen({ navigate, params, isActive }: ScannerScr
     }
   };
 
-  const toggleBypass = () => {
+  const toggleBypass = async () => {
     const nextVal = !isBypass;
+    
+    if (!nextVal) {
+      // User wants real ONNX AI mode
+      const downloaded = await isModelDownloaded();
+      if (!downloaded) {
+        Alert.alert(
+          "Download Model AI",
+          "Model visual AI (~1.8GB) belum diunduh ke penyimpanan lokal. Apakah Anda ingin mengunduhnya sekarang?",
+          [
+            {
+              text: "Batal",
+              onPress: () => {
+                setBypassMode(true);
+                setIsBypass(true);
+              },
+              style: "cancel"
+            },
+            {
+              text: "Unduh Sekarang",
+              onPress: () => startModelDownload()
+            }
+          ]
+        );
+        return;
+      } else {
+        setModelReady(true);
+      }
+    }
+
     setBypassMode(nextVal);
     setIsBypass(nextVal);
   };
 
+  const startModelDownload = async () => {
+    try {
+      setDownloadingModel(true);
+      setDownloadProgress(0);
+
+      const downloadTask = createModelDownloadResumable((progress) => {
+        setDownloadProgress(progress);
+      });
+
+      console.log("[Scanner] Starting model download...");
+      const result = await downloadTask.downloadAsync();
+      
+      if (result && result.uri) {
+        console.log("[Scanner] Model downloaded to:", result.uri);
+        setModelReady(true);
+        setBypassMode(false);
+        setIsBypass(false);
+        Alert.alert("Unduhan Selesai", "Model visual AI berhasil disimpan di penyimpanan lokal.");
+      } else {
+        throw new Error("Download returned null result");
+      }
+    } catch (e: any) {
+      console.error("[Scanner] Failed to download model:", e);
+      Alert.alert("Unduhan Gagal", "Gagal mengunduh model: " + e.message);
+      setBypassMode(true);
+      setIsBypass(true);
+    } finally {
+      setDownloadingModel(false);
+    }
+  };
+
   const handleCapture = async () => {
     if (processing) return;
+
+    if (!isBypass && !modelReady) {
+      const downloaded = await isModelDownloaded();
+      if (!downloaded) {
+        Alert.alert("Model Belum Tersedia", "Silakan unduh model AI terlebih dahulu dengan menonaktifkan Mode Bypass.");
+        return;
+      } else {
+        setModelReady(true);
+      }
+    }
 
     try {
       setProcessing(true);
@@ -146,13 +228,18 @@ export default function ScannerScreen({ navigate, params, isActive }: ScannerScr
 
       // Resize/Compress using ImageManipulator (except for simulated assets)
       let compressedUri = photoUri;
-      if (photoUri !== "simulated_capture.jpg") {
-        const manipResult = await ImageManipulator.manipulateAsync(
-          photoUri,
-          [{ resize: { width: 500 } }],
-          { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
-        );
-        compressedUri = manipResult.uri;
+      if (photoUri && photoUri !== "simulated_capture.jpg") {
+        try {
+          const manipResult = await ImageManipulator.manipulateAsync(
+            photoUri,
+            [{ resize: { width: 500 } }],
+            { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+          );
+          compressedUri = manipResult.uri;
+          console.log("[Scanner] Compressed image successfully:", compressedUri);
+        } catch (manipError) {
+          console.warn("[Scanner] Image manipulation failed, falling back to raw photo:", manipError);
+        }
       }
 
       setProcessingText("Menganalisis dengan AI Lokal...");
@@ -372,6 +459,23 @@ export default function ScannerScreen({ navigate, params, isActive }: ScannerScr
             <ActivityIndicator size="large" color="#4F46E5" />
             <Text style={styles.processingTitle}>Pemrosesan AI Lokal</Text>
             <Text style={styles.processingSubtitle}>{processingText}</Text>
+          </View>
+        </View>
+      )}
+
+      {/* Model Download Loader Overlay */}
+      {downloadingModel && (
+        <View style={styles.processingOverlay}>
+          <View style={styles.processingCard}>
+            <ActivityIndicator size="large" color="#10B981" />
+            <Text style={styles.processingTitle}>Mengunduh Model AI Lokal</Text>
+            <Text style={styles.processingSubtitle}>
+              Sedang mengunduh berkas model visual AI (~1.8GB). Jangan menutup aplikasi.
+            </Text>
+            <View style={styles.progressBarBg}>
+              <View style={[styles.progressBarFill, { width: `${downloadProgress * 100}%` }]} />
+            </View>
+            <Text style={styles.progressText}>{(downloadProgress * 100).toFixed(1)}%</Text>
           </View>
         </View>
       )}
@@ -667,5 +771,23 @@ const styles = StyleSheet.create({
     color: '#64748B',
     marginTop: 6,
     textAlign: 'center',
+  },
+  progressBarBg: {
+    width: '100%',
+    height: 8,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 4,
+    marginTop: 16,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#10B981',
+  },
+  progressText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+    marginTop: 8,
   },
 });

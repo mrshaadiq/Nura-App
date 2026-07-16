@@ -4,10 +4,10 @@ import {
   View,
   Text,
   ActivityIndicator,
-  SafeAreaView,
   StatusBar
 } from 'react-native';
 import { initDb } from './database/database';
+import { NavigationProvider, useAppNavigation } from './navigation/NavigationContext';
 import HomeScreen from './screens/HomeScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import QuestionnaireScreen from './screens/QuestionnaireScreen';
@@ -15,14 +15,49 @@ import ScannerScreen from './screens/ScannerScreen';
 import ResultsScreen from './screens/ResultsScreen';
 import HistoryScreen from './screens/HistoryScreen';
 
-interface NavState {
-  screen: 'Home' | 'Profile' | 'Questionnaire' | 'Scanner' | 'Results' | 'History';
-  params?: any;
+function AppContent() {
+  const { currentScreen, params } = useAppNavigation();
+
+  // Render active screen matching state
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+      {currentScreen === 'Home' && (
+        <HomeScreen isActive={currentScreen === 'Home'} />
+      )}
+      {currentScreen === 'Profile' && (
+        <ProfileScreen />
+      )}
+      {currentScreen === 'Questionnaire' && (
+        <QuestionnaireScreen 
+          params={params} 
+          isActive={currentScreen === 'Questionnaire'} 
+        />
+      )}
+      {currentScreen === 'Scanner' && (
+        <ScannerScreen 
+          params={params} 
+          isActive={currentScreen === 'Scanner'} 
+        />
+      )}
+      {currentScreen === 'Results' && (
+        <ResultsScreen 
+          params={params} 
+          isActive={currentScreen === 'Results'} 
+        />
+      )}
+      {currentScreen === 'History' && (
+        <HistoryScreen 
+          params={params} 
+          isActive={currentScreen === 'History'} 
+        />
+      )}
+    </View>
+  );
 }
 
 export default function App() {
   const [dbInitialized, setDbInitialized] = useState(false);
-  const [navStack, setNavStack] = useState<NavState[]>([{ screen: 'Home' }]);
 
   // Initialize SQLite Database on app launch
   useEffect(() => {
@@ -39,26 +74,6 @@ export default function App() {
     setupApp();
   }, []);
 
-  // Simple, robust custom navigation router
-  const navigate = (screen: string, params?: any) => {
-    console.log(`[App] Navigating to: ${screen}`, params);
-    
-    if (screen === 'Home') {
-      // Reset stack when returning to Dashboard to avoid memory leak or stack bloat
-      setNavStack([{ screen: 'Home' }]);
-    } else {
-      setNavStack(prev => [...prev, { screen: screen as any, params }]);
-    }
-  };
-
-  const goBack = () => {
-    if (navStack.length > 1) {
-      setNavStack(prev => prev.slice(0, -1));
-    }
-  };
-
-  const current = navStack[navStack.length - 1];
-
   // Splash/Loading screen while SQLite database is setting up
   if (!dbInitialized) {
     return (
@@ -74,45 +89,10 @@ export default function App() {
     );
   }
 
-  // Render active screen matching state
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
-      {current.screen === 'Home' && (
-        <HomeScreen navigate={navigate} isActive={current.screen === 'Home'} />
-      )}
-      {current.screen === 'Profile' && (
-        <ProfileScreen navigate={navigate} />
-      )}
-      {current.screen === 'Questionnaire' && (
-        <QuestionnaireScreen 
-          navigate={navigate} 
-          params={current.params} 
-          isActive={current.screen === 'Questionnaire'} 
-        />
-      )}
-      {current.screen === 'Scanner' && (
-        <ScannerScreen 
-          navigate={navigate} 
-          params={current.params} 
-          isActive={current.screen === 'Scanner'} 
-        />
-      )}
-      {current.screen === 'Results' && (
-        <ResultsScreen 
-          navigate={navigate} 
-          params={current.params} 
-          isActive={current.screen === 'Results'} 
-        />
-      )}
-      {current.screen === 'History' && (
-        <HistoryScreen 
-          navigate={navigate} 
-          params={current.params} 
-          isActive={current.screen === 'History'} 
-        />
-      )}
-    </View>
+    <NavigationProvider>
+      <AppContent />
+    </NavigationProvider>
   );
 }
 
