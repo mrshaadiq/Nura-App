@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F8FAFC"
+    android:padding="16dp">
+
+    <TextView
+        android:id="@+id/tv_patient_header"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Kuesioner Skrining"
+        android:textColor="#1E293B"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <TextView
+        android:id="@+id/tv_patient_age_calc"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Kategori: Memuat..."
+        android:textColor="#6366F1"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:layout_marginTop="4dp"
+        app:layout_constraintTop_toBottomOf="@id/tv_patient_header"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <ScrollView
+        android:id="@+id/sv_questions"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="16dp"
+        app:layout_constraintTop_toBottomOf="@id/tv_patient_age_calc"
+        app:layout_constraintBottom_toTopOf="@id/btn_next_to_scanner">
+
+        <LinearLayout
+            android:id="@+id/ll_questions_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+            <!-- Questions inflated dynamically -->
+        </LinearLayout>
+    </ScrollView>
+
+    <Button
+        android:id="@+id/btn_next_to_scanner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Lanjutkan ke Pemindaian Fisik (Kamera)"
+        android:textColor="#FFFFFF"
+        android:backgroundTint="#6366F1"
+        android:padding="12dp"
+        app:layout_constraintBottom_toBottomOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

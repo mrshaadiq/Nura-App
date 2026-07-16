@@ -1,0 +1,62 @@
+[
+    {
+        "merged": "com.nura.app-debug-3:/drawable_scanner_guide_box.xml.flat",
+        "source": "com.nura.app-main-5:/drawable/scanner_guide_box.xml"
+    },
+    {
+        "merged": "com.nura.app-debug-3:/drawable_btn_capture_circle.xml.flat",
+        "source": "com.nura.app-main-5:/drawable/btn_capture_circle.xml"
+    },
+    {
+        "merged": "com.nura.app-debug-3:/layout_item_history.xml.flat",
+        "source": "com.nura.app-main-5:/layout/item_history.xml"
+    },
+    {
+        "merged": "com.nura.app-debug-3:/layout_item_question.xml.flat",
+        "source": "com.nura.app-main-5:/layout/item_question.xml"
+    },
+    {
+        "merged": "com.nura.app-debug-3:/layout_fragment_results.xml.flat",
+        "source": "com.nura.app-main-5:/layout/fragment_results.xml"
+    },
+    {
+        "merged": "com.nura.app-debug-3:/layout_fragment_profile.xml.flat",
+        "source": "com.nura.app-main-5:/layout/fragment_profile.xml"
+    },
+    {
+        "merged": "com.nura.app-debug-3:/layout_fragment_questionnaire.xml.flat",
+        "source": "com.nura.app-main-5:/layout/fragment_questionnaire.xml"
+    },
+    {
+        "merged": "com.nura.app-debug-3:/layout_fragment_history.xml.flat",
+        "source": "com.nura.app-main-5:/layout/fragment_history.xml"
+    },
+    {
+        "merged": "com.nura.app-debug-3:/drawable_badge_pink.xml.flat",
+        "source": "com.nura.app-main-5:/drawable/badge_pink.xml"
+    },
+    {
+        "merged": "com.nura.app-debug-3:/layout_fragment_home.xml.flat",
+        "source": "com.nura.app-main-5:/layout/fragment_home.xml"
+    },
+    {
+        "merged": "com.nura.app-debug-3:/layout_fragment_scanner.xml.flat",
+        "source": "com.nura.app-main-5:/layout/fragment_scanner.xml"
+    },
+    {
+        "merged": "com.nura.app-debug-3:/xml_file_paths.xml.flat",
+        "source": "com.nura.app-main-5:/xml/file_paths.xml"
+    },
+    {
+        "merged": "com.nura.app-debug-3:/layout_activity_main.xml.flat",
+        "source": "com.nura.app-main-5:/layout/activity_main.xml"
+    },
+    {
+        "merged": "com.nura.app-debug-3:/drawable_badge_blue.xml.flat",
+        "source": "com.nura.app-main-5:/drawable/badge_blue.xml"
+    },
+    {
+        "merged": "com.nura.app-debug-3:/layout_item_patient.xml.flat",
+        "source": "com.nura.app-main-5:/layout/item_patient.xml"
+    }
+]
