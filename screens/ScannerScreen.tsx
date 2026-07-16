@@ -17,7 +17,6 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { analyzeEyes, analyzeNails, analyzeFace, isBypassMode, setBypassMode } from '../ai/onnxRunner';
 import { addScreeningSession } from '../database/database';
 import { useAppNavigation } from '../navigation/NavigationContext';
-import { isModelDownloaded, createModelDownloadResumable } from '../ai/modelDownloader';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const overlaySize = screenWidth * 0.75;
@@ -53,19 +52,13 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
   const [faceAnalysis, setFaceAnalysis] = useState('');
   
   const [isBypass, setIsBypass] = useState(isBypassMode());
-  const [downloadingModel, setDownloadingModel] = useState(false);
-  const [downloadProgress, setDownloadProgress] = useState(0);
-  const [modelReady, setModelReady] = useState(false);
+  const [modelReady, setModelReady] = useState(true); // MobileNetV2 model is bundled locally, ready by default
   const cameraRef = useRef<any>(null);
 
   // Scanning animation
   const scanLineAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    async function checkModel() {
-      const downloaded = await isModelDownloaded();
-      setModelReady(downloaded);
-    }
     if (isActive) {
       // Reset scanning steps
       setCurrentStep(1);
@@ -73,9 +66,6 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
       setEyePhotoPath(null);
       setNailPhotoPath(null);
       setFacePhotoPath(null);
-      
-      // Check model download status
-      checkModel();
       
       // Start scanning animation loop
       startScanningAnimation();
@@ -126,84 +116,14 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
     }
   };
 
-  const toggleBypass = async () => {
+  const toggleBypass = () => {
     const nextVal = !isBypass;
-    
-    if (!nextVal) {
-      // User wants real ONNX AI mode
-      const downloaded = await isModelDownloaded();
-      if (!downloaded) {
-        Alert.alert(
-          "Download Model AI",
-          "Model visual AI (~1.8GB) belum diunduh ke penyimpanan lokal. Apakah Anda ingin mengunduhnya sekarang?",
-          [
-            {
-              text: "Batal",
-              onPress: () => {
-                setBypassMode(true);
-                setIsBypass(true);
-              },
-              style: "cancel"
-            },
-            {
-              text: "Unduh Sekarang",
-              onPress: () => startModelDownload()
-            }
-          ]
-        );
-        return;
-      } else {
-        setModelReady(true);
-      }
-    }
-
     setBypassMode(nextVal);
     setIsBypass(nextVal);
   };
 
-  const startModelDownload = async () => {
-    try {
-      setDownloadingModel(true);
-      setDownloadProgress(0);
-
-      const downloadTask = createModelDownloadResumable((progress) => {
-        setDownloadProgress(progress);
-      });
-
-      console.log("[Scanner] Starting model download...");
-      const result = await downloadTask.downloadAsync();
-      
-      if (result && result.uri) {
-        console.log("[Scanner] Model downloaded to:", result.uri);
-        setModelReady(true);
-        setBypassMode(false);
-        setIsBypass(false);
-        Alert.alert("Unduhan Selesai", "Model visual AI berhasil disimpan di penyimpanan lokal.");
-      } else {
-        throw new Error("Download returned null result");
-      }
-    } catch (e: any) {
-      console.error("[Scanner] Failed to download model:", e);
-      Alert.alert("Unduhan Gagal", "Gagal mengunduh model: " + e.message);
-      setBypassMode(true);
-      setIsBypass(true);
-    } finally {
-      setDownloadingModel(false);
-    }
-  };
-
   const handleCapture = async () => {
     if (processing) return;
-
-    if (!isBypass && !modelReady) {
-      const downloaded = await isModelDownloaded();
-      if (!downloaded) {
-        Alert.alert("Model Belum Tersedia", "Silakan unduh model AI terlebih dahulu dengan menonaktifkan Mode Bypass.");
-        return;
-      } else {
-        setModelReady(true);
-      }
-    }
 
     try {
       setProcessing(true);
@@ -463,22 +383,7 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
         </View>
       )}
 
-      {/* Model Download Loader Overlay */}
-      {downloadingModel && (
-        <View style={styles.processingOverlay}>
-          <View style={styles.processingCard}>
-            <ActivityIndicator size="large" color="#10B981" />
-            <Text style={styles.processingTitle}>Mengunduh Model AI Lokal</Text>
-            <Text style={styles.processingSubtitle}>
-              Sedang mengunduh berkas model visual AI (~1.8GB). Jangan menutup aplikasi.
-            </Text>
-            <View style={styles.progressBarBg}>
-              <View style={[styles.progressBarFill, { width: `${downloadProgress * 100}%` }]} />
-            </View>
-            <Text style={styles.progressText}>{(downloadProgress * 100).toFixed(1)}%</Text>
-          </View>
-        </View>
-      )}
+
     </SafeAreaView>
   );
 }
