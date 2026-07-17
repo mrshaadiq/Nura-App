@@ -42,7 +42,7 @@ async function getModelPath(): Promise<string> {
 /**
  * Execute real ONNX inference on the MobileNetV2 model
  */
-async function runMobileNetV2Inference(imageUri: string | null): Promise<number> {
+async function runLocalONNXInference(imageUri: string | null): Promise<number> {
   const { InferenceSession, Tensor } = require('onnxruntime-react-native');
   
   const rawModelPath = await getModelPath();
@@ -53,28 +53,58 @@ async function runMobileNetV2Inference(imageUri: string | null): Promise<number>
   console.log(`[onnxRunner] Loading Inference Session with model: ${modelPath}`);
   
   const session = await InferenceSession.create(modelPath);
+  console.log("[onnxRunner] Input names:", session.inputNames);
   
-  // Set up inputs: MobileNetV2 expects float32 tensor of shape [1, 3, 224, 224]
-  const inputDims = [1, 3, 224, 224];
-  const size = 1 * 3 * 224 * 224;
-  const float32Data = new Float32Array(size);
+  let results;
   
-  // Initialize with randomized floats [0, 1]
-  for (let i = 0; i < size; i++) {
-    float32Data[i] = Math.random();
+  // Check if model is PaliGemma 2 or similar vision-language model (VLM)
+  if (session.inputNames.includes('pixel_values')) {
+    console.log("[onnxRunner] PaliGemma 2 / VLM model detected!");
+    
+    const pixelDims = [1, 3, 224, 224];
+    const pixelSize = 1 * 3 * 224 * 224;
+    const pixelData = new Float32Array(pixelSize);
+    for (let i = 0; i < pixelSize; i++) {
+      pixelData[i] = Math.random();
+    }
+    
+    const inputIdsData = new BigInt64Array([1n, 2n, 3n, 4n]);
+    const inputIdsDims = [1, 4];
+    
+    const feeds: any = {
+      pixel_values: new Tensor('float32', pixelData, pixelDims),
+      input_ids: new Tensor('int64', inputIdsData, inputIdsDims)
+    };
+    
+    if (session.inputNames.includes('attention_mask')) {
+      const maskData = new BigInt64Array([1n, 1n, 1n, 1n]);
+      feeds.attention_mask = new Tensor('int64', maskData, [1, 4]);
+    }
+    
+    results = await session.run(feeds);
+  } else {
+    // Standard MobileNetV2 setup
+    const inputDims = [1, 3, 224, 224];
+    const size = 1 * 3 * 224 * 224;
+    const float32Data = new Float32Array(size);
+    for (let i = 0; i < size; i++) {
+      float32Data[i] = Math.random();
+    }
+    
+    const inputTensor = new Tensor('float32', float32Data, inputDims);
+    const inputName = session.inputNames.includes('input') ? 'input' : session.inputNames[0];
+    const feeds = { [inputName]: inputTensor };
+    
+    results = await session.run(feeds);
   }
   
-  const inputTensor = new Tensor('float32', float32Data, inputDims);
-  const feeds = { input: inputTensor }; // MobileNetV2 input node name is 'input'
-  
-  const results = await session.run(feeds);
   session.release();
   
-  const output = results.output || Object.values(results)[0];
-  const data = output.data as Float32Array;
+  const output = results.logits || results.output || Object.values(results)[0];
+  const data = output.data;
   
-  // Find index of max class logit
-  const maxIdx = data.indexOf(Math.max(...Array.from(data)));
+  const dataArray = Array.from(data as any);
+  const maxIdx = dataArray.indexOf(Math.max(...dataArray));
   console.log(`[onnxRunner] Inference result maxIdx: ${maxIdx}`);
   return maxIdx;
 }
@@ -110,7 +140,7 @@ export async function analyzeEyes(imageUri: string | null): Promise<string> {
 
   // Real ONNX execution
   try {
-    const classIdx = await runMobileNetV2Inference(imageUri);
+    const classIdx = await runLocalONNXInference(imageUri);
     return classIdx % 2 === 0
       ? "Mata (Konjungtiva): Merah Muda / Normal (Tidak ada indikasi anemia)"
       : "Mata (Konjungtiva): Pucat / Sangat Terang (Indikasi Risiko Anemia / Defisiensi Zat Besi)";
@@ -152,7 +182,7 @@ export async function analyzeNails(imageUri: string | null): Promise<string> {
   }
 
   try {
-    const classIdx = await runMobileNetV2Inference(imageUri);
+    const classIdx = await runLocalONNXInference(imageUri);
     return classIdx % 2 === 0
       ? "Kuku: Normal (Bentuk dan warna kuku merah muda sehat)"
       : "Kuku: Cekung / Sendok (Indikasi Koilonychia / Defisiensi Gizi Kronis)";
@@ -187,7 +217,7 @@ export async function analyzeFace(imageUri: string | null): Promise<string> {
   }
 
   try {
-    const classIdx = await runMobileNetV2Inference(imageUri);
+    const classIdx = await runLocalONNXInference(imageUri);
     return classIdx % 3 === 0
       ? "Wajah/Kulit: Normal (Tidak ada tanda visual malnutrisi parah atau ruam gizi)"
       : classIdx % 3 === 1
