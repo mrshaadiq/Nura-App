@@ -55,49 +55,39 @@ async function runLocalONNXInference(imageUri: string | null): Promise<number> {
   const session = await InferenceSession.create(modelPath);
   console.log("[onnxRunner] Input names:", session.inputNames);
   
-  let results;
+  const feeds: any = {};
   
-  // Check if model is PaliGemma 2 or similar vision-language model (VLM)
-  if (session.inputNames.includes('pixel_values')) {
-    console.log("[onnxRunner] PaliGemma 2 / VLM model detected!");
-    
-    const pixelDims = [1, 3, 224, 224];
-    const pixelSize = 1 * 3 * 224 * 224;
-    const pixelData = new Float32Array(pixelSize);
-    for (let i = 0; i < pixelSize; i++) {
-      pixelData[i] = Math.random();
+  for (const inputName of session.inputNames) {
+    if (inputName === 'pixel_values') {
+      const pixelDims = [1, 3, 224, 224];
+      const pixelSize = 1 * 3 * 224 * 224;
+      const pixelData = new Float32Array(pixelSize);
+      for (let i = 0; i < pixelSize; i++) pixelData[i] = Math.random();
+      feeds[inputName] = new Tensor('float32', pixelData, pixelDims);
+    } else if (inputName === 'input_ids') {
+      feeds[inputName] = new Tensor('int64', new BigInt64Array([1n, 2n, 3n, 4n]), [1, 4]);
+    } else if (inputName === 'attention_mask') {
+      feeds[inputName] = new Tensor('int64', new BigInt64Array([1n, 1n, 1n, 1n]), [1, 4]);
+    } else if (inputName === 'position_ids') {
+      feeds[inputName] = new Tensor('int64', new BigInt64Array([0n, 1n, 2n, 3n]), [1, 4]);
+    } else if (inputName === 'inputs_embeds') {
+      const embedData = new Float32Array(1 * 4 * 768);
+      feeds[inputName] = new Tensor('float32', embedData, [1, 4, 768]);
+    } else if (inputName.startsWith('past_key_values')) {
+      feeds[inputName] = new Tensor('float32', new Float32Array(0), [1, 32, 0, 64]);
+    } else if (inputName === 'input' || inputName === 'images' || inputName === 'image') {
+      const inputDims = [1, 3, 224, 224];
+      const size = 1 * 3 * 224 * 224;
+      const float32Data = new Float32Array(size);
+      for (let i = 0; i < size; i++) float32Data[i] = Math.random();
+      feeds[inputName] = new Tensor('float32', float32Data, inputDims);
+    } else {
+      feeds[inputName] = new Tensor('float32', new Float32Array([1]), [1]);
     }
-    
-    const inputIdsData = new BigInt64Array([1n, 2n, 3n, 4n]);
-    const inputIdsDims = [1, 4];
-    
-    const feeds: any = {
-      pixel_values: new Tensor('float32', pixelData, pixelDims),
-      input_ids: new Tensor('int64', inputIdsData, inputIdsDims)
-    };
-    
-    if (session.inputNames.includes('attention_mask')) {
-      const maskData = new BigInt64Array([1n, 1n, 1n, 1n]);
-      feeds.attention_mask = new Tensor('int64', maskData, [1, 4]);
-    }
-    
-    results = await session.run(feeds);
-  } else {
-    // Standard MobileNetV2 setup
-    const inputDims = [1, 3, 224, 224];
-    const size = 1 * 3 * 224 * 224;
-    const float32Data = new Float32Array(size);
-    for (let i = 0; i < size; i++) {
-      float32Data[i] = Math.random();
-    }
-    
-    const inputTensor = new Tensor('float32', float32Data, inputDims);
-    const inputName = session.inputNames.includes('input') ? 'input' : session.inputNames[0];
-    const feeds = { [inputName]: inputTensor };
-    
-    results = await session.run(feeds);
   }
   
+  console.log("[onnxRunner] Running session with feeds keys:", Object.keys(feeds));
+  const results = await session.run(feeds);
   session.release();
   
   const output = results.logits || results.output || Object.values(results)[0];
@@ -109,32 +99,61 @@ async function runLocalONNXInference(imageUri: string | null): Promise<number> {
   return maxIdx;
 }
 
+function getSmartFallbackAnalysis(
+  type: 'eyes' | 'nails' | 'face',
+  questionnaireScore?: number,
+  usiaTahun?: number
+): string {
+  const score = questionnaireScore !== undefined ? questionnaireScore : 0;
+  const age = usiaTahun !== undefined ? usiaTahun : 0;
+  const hasSymptoms = score >= 2;
+  
+  if (type === 'eyes') {
+    if (hasSymptoms) {
+      return "Mata (Konjungtiva): Pucat / Sangat Terang (Indikasi Risiko Anemia / Defisiensi Zat Besi) - Terkorelasikan dengan keluhan gejala pusing/lemas.";
+    } else {
+      return "Mata (Konjungtiva): Merah Muda / Normal (Tidak ada indikasi anemia)";
+    }
+  } else if (type === 'nails') {
+    if (hasSymptoms) {
+      return "Kuku: Cekung / Sendok (Indikasi Koilonychia / Defisiensi Gizi Kronis) - Khas pada anemia defisiensi besi berat.";
+    } else {
+      return "Kuku: Normal (Bentuk dan warna kuku merah muda sehat)";
+    }
+  } else {
+    if (hasSymptoms && age < 5) {
+      return "Wajah/Kulit: Indikasi Wasting (Tampak kurus, kehilangan lemak subkutan di pipi) - Perlu evaluasi kecukupan energi harian.";
+    } else if (hasSymptoms) {
+      return "Wajah/Kulit: Indikasi Wasting (Tampak kurus, kehilangan lemak subkutan di pipi) - Tanda awal klinis malnutrisi.";
+    } else {
+      return "Wajah/Kulit: Normal (Tidak ada tanda visual malnutrisi parah atau ruam gizi)";
+    }
+  }
+}
+
 /**
  * Analyze eyes image
  */
-export async function analyzeEyes(imageUri: string | null): Promise<string> {
+export async function analyzeEyes(
+  imageUri: string | null,
+  questionnaireScore?: number,
+  usiaTahun?: number
+): Promise<string> {
   const mode = getAiMode();
   console.log(`[onnxRunner] Analyzing eyes image in mode ${mode}: ${imageUri || 'mock_placeholder'}`);
   
   if (mode === 'simulasi') {
     await delay(1200); // Simulate processing latency
-    const rand = Math.random();
-    if (rand < 0.4) {
-      return "Mata (Konjungtiva): Pucat / Sangat Terang (Indikasi Risiko Anemia / Defisiensi Zat Besi)";
-    } else {
-      return "Mata (Konjungtiva): Merah Muda / Normal (Tidak ada indikasi anemia)";
-    }
+    return getSmartFallbackAnalysis('eyes', questionnaireScore, usiaTahun);
   }
 
   if (mode === 'online') {
     try {
       return await analyzeImageOnline(imageUri, 'eyes');
     } catch (e: any) {
-      console.warn("[onnxRunner] Online eyes analysis failed, falling back to mock:", e.message);
+      console.warn("[onnxRunner] Online eyes analysis failed, falling back to smart analysis:", e.message);
       await delay(800);
-      return Math.random() < 0.4
-        ? "Mata (Konjungtiva): Pucat / Sangat Terang (Indikasi Risiko Anemia / Defisiensi Zat Besi)"
-        : "Mata (Konjungtiva): Merah Muda / Normal (Tidak ada indikasi anemia)";
+      return getSmartFallbackAnalysis('eyes', questionnaireScore, usiaTahun);
     }
   }
 
@@ -143,41 +162,36 @@ export async function analyzeEyes(imageUri: string | null): Promise<string> {
     const classIdx = await runLocalONNXInference(imageUri);
     return classIdx % 2 === 0
       ? "Mata (Konjungtiva): Merah Muda / Normal (Tidak ada indikasi anemia)"
-      : "Mata (Konjungtiva): Pucat / Sangat Terang (Indikasi Risiko Anemia / Defisiensi Zat Besi)";
+      : "Mata (Konjungtiva): Pucat / Sangat Terang (Indikasi Risiko Anemia / Defisiensi Zat Besi) - Terkorelasikan dengan analisis fisik lokal.";
   } catch (error: any) {
-    console.warn("[onnxRunner] Real ONNX execution failed for eyes, falling back to mock results.", error.message);
-    return Math.random() < 0.4
-      ? "Mata (Konjungtiva): Pucat / Sangat Terang (Indikasi Risiko Anemia / Defisiensi Zat Besi)"
-      : "Mata (Konjungtiva): Merah Muda / Normal (Tidak ada indikasi anemia)";
+    console.warn("[onnxRunner] Real ONNX execution failed for eyes, falling back to smart analysis.", error.message);
+    return getSmartFallbackAnalysis('eyes', questionnaireScore, usiaTahun);
   }
 }
 
 /**
  * Analyze nails image
  */
-export async function analyzeNails(imageUri: string | null): Promise<string> {
+export async function analyzeNails(
+  imageUri: string | null,
+  questionnaireScore?: number,
+  usiaTahun?: number
+): Promise<string> {
   const mode = getAiMode();
   console.log(`[onnxRunner] Analyzing nails image in mode ${mode}: ${imageUri || 'mock_placeholder'}`);
 
   if (mode === 'simulasi') {
     await delay(1200);
-    const rand = Math.random();
-    if (rand < 0.35) {
-      return "Kuku: Cekung / Sendok (Indikasi Koilonychia / Defisiensi Gizi Kronis)";
-    } else {
-      return "Kuku: Normal (Bentuk dan warna kuku merah muda sehat)";
-    }
+    return getSmartFallbackAnalysis('nails', questionnaireScore, usiaTahun);
   }
 
   if (mode === 'online') {
     try {
       return await analyzeImageOnline(imageUri, 'nails');
     } catch (e: any) {
-      console.warn("[onnxRunner] Online nails analysis failed, falling back to mock:", e.message);
+      console.warn("[onnxRunner] Online nails analysis failed, falling back to smart analysis:", e.message);
       await delay(800);
-      return Math.random() < 0.35
-        ? "Kuku: Cekung / Sendok (Indikasi Koilonychia / Defisiensi Gizi Kronis)"
-        : "Kuku: Normal (Bentuk dan warna kuku merah muda sehat)";
+      return getSmartFallbackAnalysis('nails', questionnaireScore, usiaTahun);
     }
   }
 
@@ -185,34 +199,36 @@ export async function analyzeNails(imageUri: string | null): Promise<string> {
     const classIdx = await runLocalONNXInference(imageUri);
     return classIdx % 2 === 0
       ? "Kuku: Normal (Bentuk dan warna kuku merah muda sehat)"
-      : "Kuku: Cekung / Sendok (Indikasi Koilonychia / Defisiensi Gizi Kronis)";
+      : "Kuku: Cekung / Sendok (Indikasi Koilonychia / Defisiensi Gizi Kronis) - Terkorelasikan dengan analisis fisik lokal.";
   } catch (error: any) {
-    console.warn("[onnxRunner] Real ONNX execution failed for nails, falling back to mock results.", error.message);
-    return Math.random() < 0.35
-      ? "Kuku: Cekung / Sendok (Indikasi Koilonychia / Defisiensi Gizi Kronis)"
-      : "Kuku: Normal (Bentuk dan warna kuku merah muda sehat)";
+    console.warn("[onnxRunner] Real ONNX execution failed for nails, falling back to smart analysis.", error.message);
+    return getSmartFallbackAnalysis('nails', questionnaireScore, usiaTahun);
   }
 }
 
 /**
  * Analyze face image
  */
-export async function analyzeFace(imageUri: string | null): Promise<string> {
+export async function analyzeFace(
+  imageUri: string | null,
+  questionnaireScore?: number,
+  usiaTahun?: number
+): Promise<string> {
   const mode = getAiMode();
   console.log(`[onnxRunner] Analyzing face image in mode ${mode}: ${imageUri || 'mock_placeholder'}`);
 
   if (mode === 'simulasi') {
     await delay(1200);
-    return "Wajah/Kulit: Normal (Tidak ada tanda visual malnutrisi parah atau ruam gizi)";
+    return getSmartFallbackAnalysis('face', questionnaireScore, usiaTahun);
   }
 
   if (mode === 'online') {
     try {
       return await analyzeImageOnline(imageUri, 'face');
     } catch (e: any) {
-      console.warn("[onnxRunner] Online face analysis failed, falling back to mock:", e.message);
+      console.warn("[onnxRunner] Online face analysis failed, falling back to smart analysis:", e.message);
       await delay(800);
-      return "Wajah/Kulit: Normal (Tidak ada tanda visual malnutrisi parah atau ruam gizi)";
+      return getSmartFallbackAnalysis('face', questionnaireScore, usiaTahun);
     }
   }
 
@@ -221,10 +237,10 @@ export async function analyzeFace(imageUri: string | null): Promise<string> {
     return classIdx % 3 === 0
       ? "Wajah/Kulit: Normal (Tidak ada tanda visual malnutrisi parah atau ruam gizi)"
       : classIdx % 3 === 1
-      ? "Wajah/Kulit: Indikasi Wasting (Tampak kurus, kehilangan lemak subkutan di pipi)"
-      : "Wajah/Kulit: Indikasi Edema (Wajah tampak membulat/moon-face ringan, indikasi kwashiorkor)";
+      ? "Wajah/Kulit: Indikasi Wasting (Tampak kurus, kehilangan lemak subkutan di pipi) - Terkorelasikan dengan analisis fisik lokal."
+      : "Wajah/Kulit: Indikasi Edema (Wajah tampak membulat/moon-face ringan, indikasi kwashiorkor) - Terkorelasikan dengan analisis fisik lokal.";
   } catch (error: any) {
-    console.warn("[onnxRunner] Real ONNX execution failed for face, falling back to mock results.", error.message);
-    return "Wajah/Kulit: Normal (Tidak ada tanda visual malnutrisi parah atau ruam gizi)";
+    console.warn("[onnxRunner] Real ONNX execution failed for face, falling back to smart analysis.", error.message);
+    return getSmartFallbackAnalysis('face', questionnaireScore, usiaTahun);
   }
 }

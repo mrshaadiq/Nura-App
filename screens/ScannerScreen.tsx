@@ -344,17 +344,17 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
 
       if (currentStep === 1) {
         setEyePhotoPath(compressedUri);
-        const analysis = await analyzeEyes(compressedUri);
+        const analysis = await analyzeEyes(compressedUri, questionnaireScore, usiaTahun);
         setEyeAnalysis(analysis);
         setCurrentStep(2);
       } else if (currentStep === 2) {
         setNailPhotoPath(compressedUri);
-        const analysis = await analyzeNails(compressedUri);
+        const analysis = await analyzeNails(compressedUri, questionnaireScore, usiaTahun);
         setNailAnalysis(analysis);
         setCurrentStep(3);
       } else {
         setFacePhotoPath(compressedUri);
-        const analysis = await analyzeFace(compressedUri);
+        const analysis = await analyzeFace(compressedUri, questionnaireScore, usiaTahun);
         setFaceAnalysis(analysis);
         
         // Processing final output
