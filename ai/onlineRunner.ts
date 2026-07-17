@@ -113,21 +113,35 @@ export async function analyzeImageOnline(imageUri: string | null, type: 'eyes' |
 
     let prompt = '';
     if (type === 'eyes') {
-      prompt = 'Analyze this eye (lower eyelid conjunctiva) photo. Detect if it looks pale/yellowish (indicating potential anemia or malnutrition) or normal healthy pink. Respond with a concise 1-sentence verdict in Indonesian. Format must start with "Mata (Konjungtiva): " followed by the result (e.g. "Mata (Konjungtiva): Pucat/Anomali..." or "Mata (Konjungtiva): Merah Muda/Normal...").';
+      prompt = 'Analyze this photo. FIRST, verify if this image contains a human eye (specifically the lower eyelid conjunctiva or eye area). If this is NOT a human eye (e.g. it is a table, floor, chair, phone, wall, or empty space), you MUST respond EXACTLY with the text: "BUKAN_MATA". Otherwise, if it is a valid human eye, analyze if it looks pale/yellowish (indicating potential anemia/deficiency) or normal healthy pink. Respond with a concise 1-sentence verdict in Indonesian starting with "Mata (Konjungtiva): "';
     } else if (type === 'nails') {
-      prompt = 'Analyze this nail photo. Detect if it looks spoon-shaped/koilonychia, pale, or normal pink and healthy. Respond with a concise 1-sentence verdict in Indonesian. Format must start with "Kuku: " followed by the result (e.g. "Kuku: Cekung/Koilonychia..." or "Kuku: Normal...").';
+      prompt = 'Analyze this photo. FIRST, verify if this image contains a human finger nail. If this is NOT a human nail (e.g. it is a table, floor, chair, phone, wall, or empty space), you MUST respond EXACTLY with the text: "BUKAN_KUKU". Otherwise, if it is a valid human nail, analyze if it looks spoon-shaped/koilonychia, pale, or normal pink. Respond with a concise 1-sentence verdict in Indonesian starting with "Kuku: "';
     } else {
-      prompt = 'Analyze this face photo. Detect signs of wasting, severe thinness, or normal. Respond with a concise 1-sentence verdict in Indonesian. Format must start with "Wajah: " followed by the result (e.g. "Wajah: Pucat dan Kurus..." or "Wajah: Normal...").';
+      prompt = 'Analyze this photo. FIRST, verify if this image contains a human face. If this is NOT a human face (e.g. it is a table, floor, chair, phone, wall, or empty space), you MUST respond EXACTLY with the text: "BUKAN_WAJAH". Otherwise, if it is a valid human face, analyze if it shows signs of wasting, severe thinness, or normal. Respond with a concise 1-sentence verdict in Indonesian starting with "Wajah: "';
     }
 
+    let result = '';
     // Try Gemini first
     try {
-      return await fetchGemini(base64, prompt);
+      result = await fetchGemini(base64, prompt);
     } catch (geminiError: any) {
       console.warn(`[onlineRunner] Gemini failed, falling back to Groq Vision:`, geminiError.message);
       // Fallback to Groq Vision
-      return await fetchGroqVision(base64, prompt);
+      result = await fetchGroqVision(base64, prompt);
     }
+
+    const cleanResult = result.trim();
+    if (cleanResult.includes("BUKAN_MATA")) {
+      throw new Error("BUKAN_MATA: Gambar tidak mendeteksi mata manusia. Silakan foto kelopak mata bawah anak secara fokus.");
+    }
+    if (cleanResult.includes("BUKAN_KUKU")) {
+      throw new Error("BUKAN_KUKU: Gambar tidak mendeteksi kuku manusia. Silakan foto jari tangan anak secara fokus.");
+    }
+    if (cleanResult.includes("BUKAN_WAJAH")) {
+      throw new Error("BUKAN_WAJAH: Gambar tidak mendeteksi wajah manusia. Silakan foto wajah anak secara simetris.");
+    }
+
+    return cleanResult;
   } catch (error: any) {
     console.error(`[onlineRunner] All online image analysis pipelines failed:`, error.message);
     throw error;

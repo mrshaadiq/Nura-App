@@ -361,9 +361,15 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
         setProcessingText("Menyimpan hasil pemeriksaan...");
         await saveScreeningResult(eyePhotoPath, nailPhotoPath, compressedUri, eyeAnalysis, nailAnalysis, analysis);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      Alert.alert("Error Pemindaian", "Terjadi kesalahan saat memproses gambar.");
+      const errMsg = error?.message || "";
+      if (errMsg.includes("BUKAN_MATA") || errMsg.includes("BUKAN_KUKU") || errMsg.includes("BUKAN_WAJAH")) {
+        const displayMsg = errMsg.split(": ").slice(1).join(": ") || errMsg;
+        Alert.alert("Gambar Tidak Valid", displayMsg);
+      } else {
+        Alert.alert("Error Pemindaian", "Terjadi kesalahan saat memproses gambar. Detail: " + errMsg);
+      }
     } finally {
       setProcessing(false);
     }
