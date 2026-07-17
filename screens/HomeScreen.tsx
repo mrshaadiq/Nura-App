@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { getPatients, Patient } from '../database/database';
 import { useAppNavigation } from '../navigation/NavigationContext';
+import { getAiMode, setAiMode, AiMode } from '../ai/aiSettings';
 
 interface HomeScreenProps {
   isActive: boolean;
@@ -22,6 +23,20 @@ export default function HomeScreen({ isActive }: HomeScreenProps) {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [aiMode, setAiModeState] = useState<AiMode>(getAiMode());
+
+  const cycleAiMode = () => {
+    let nextMode: AiMode = 'online';
+    if (aiMode === 'online') {
+      nextMode = 'offline';
+    } else if (aiMode === 'offline') {
+      nextMode = 'simulasi';
+    } else {
+      nextMode = 'online';
+    }
+    setAiMode(nextMode);
+    setAiModeState(nextMode);
+  };
 
   const fetchPatientList = async () => {
     try {
@@ -38,6 +53,7 @@ export default function HomeScreen({ isActive }: HomeScreenProps) {
   useEffect(() => {
     if (isActive) {
       fetchPatientList();
+      setAiModeState(getAiMode());
     }
   }, [isActive]);
 
@@ -149,8 +165,30 @@ export default function HomeScreen({ isActive }: HomeScreenProps) {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
       <View style={styles.header}>
-        <Text style={styles.title}>Nura App</Text>
-        <Text style={styles.subtitle}>Deteksi Dini Kesehatan Gizi & Stunting</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>Nura App</Text>
+            <Text style={styles.subtitle}>Deteksi Dini Kesehatan Gizi & Stunting</Text>
+          </View>
+          <TouchableOpacity 
+            style={[
+              styles.aiModeBtn,
+              aiMode === 'online' && { backgroundColor: '#DEF2FE', borderColor: '#0284C7' },
+              aiMode === 'offline' && { backgroundColor: '#DEF7EC', borderColor: '#059669' },
+              aiMode === 'simulasi' && { backgroundColor: '#F1F5F9', borderColor: '#64748B' }
+            ]}
+            onPress={cycleAiMode}
+          >
+            <Text style={[
+              styles.aiModeBtnText,
+              aiMode === 'online' && { color: '#0284C7' },
+              aiMode === 'offline' && { color: '#059669' },
+              aiMode === 'simulasi' && { color: '#64748B' }
+            ]}>
+              {aiMode === 'online' ? '🌐 Online AI' : aiMode === 'offline' ? '💾 Offline AI' : '🖥️ Simulasi'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.searchContainer}>
@@ -404,5 +442,18 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '300',
     lineHeight: 32,
+  },
+  aiModeBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 10,
+  },
+  aiModeBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

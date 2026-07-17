@@ -26,6 +26,24 @@ import * as FileSystem from 'expo-file-system/legacy';
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const overlaySize = screenWidth * 0.75;
 
+const cleanErrorMessage = (msg: string): string => {
+  if (!msg) return "Terjadi masalah koneksi ke server.";
+  const lower = msg.toLowerCase();
+  if (lower.includes("fetch failed") || lower.includes("network request failed")) {
+    return "Koneksi internet Anda terputus atau server tidak dapat dihubungi.";
+  }
+  if (lower.includes("api_key_invalid") || lower.includes("key is invalid")) {
+    return "Kunci API (API Key) server tidak valid atau sudah kedaluwarsa.";
+  }
+  if (lower.includes("rate limit") || lower.includes("429") || lower.includes("limit")) {
+    return "Server terlalu sibuk (Limit Request terlampaui). Silakan coba beberapa saat lagi.";
+  }
+  if (lower.includes("500") || lower.includes("503") || lower.includes("internal server error")) {
+    return "Server sedang mengalami gangguan internal (Service Unavailable).";
+  }
+  return msg;
+};
+
 interface ScannerScreenProps {
   params: {
     patientId: number;
@@ -365,6 +383,10 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
         recommendationText = onlineDiagnosis.recommendation;
       } catch (e: any) {
         console.warn("[Scanner] Online diagnosis failed, falling back to static calculation:", e.message);
+        Alert.alert(
+          "Server AI Online Bermasalah",
+          "Gagal menghubungi server AI (Groq/Gemini). Analisis terintegrasi akan dihitung secara lokal di HP Anda.\n\nDetail: " + cleanErrorMessage(e.message)
+        );
       }
     }
 

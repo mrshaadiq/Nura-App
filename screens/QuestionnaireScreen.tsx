@@ -15,6 +15,24 @@ import { useAppNavigation } from '../navigation/NavigationContext';
 import { getAiMode } from '../ai/aiSettings';
 import { generateQuestionsOnline } from '../ai/onlineRunner';
 
+const cleanErrorMessage = (msg: string): string => {
+  if (!msg) return "Terjadi masalah koneksi ke server.";
+  const lower = msg.toLowerCase();
+  if (lower.includes("fetch failed") || lower.includes("network request failed")) {
+    return "Koneksi internet Anda terputus atau server tidak dapat dihubungi.";
+  }
+  if (lower.includes("api_key_invalid") || lower.includes("key is invalid")) {
+    return "Kunci API (API Key) server tidak valid atau sudah kedaluwarsa.";
+  }
+  if (lower.includes("rate limit") || lower.includes("429") || lower.includes("limit")) {
+    return "Server terlalu sibuk (Limit Request terlampaui). Silakan coba beberapa saat lagi.";
+  }
+  if (lower.includes("500") || lower.includes("503") || lower.includes("internal server error")) {
+    return "Server sedang mengalami gangguan internal (Service Unavailable).";
+  }
+  return msg;
+};
+
 interface QuestionnaireScreenProps {
   params: { patientId: number };
   isActive: boolean;
@@ -113,6 +131,10 @@ export default function QuestionnaireScreen({ params, isActive }: QuestionnaireS
             qList = aiQuestions;
           } catch (e: any) {
             console.warn("[Questionnaire] Failed to fetch custom AI questions, falling back to static questions.", e.message);
+            Alert.alert(
+              "Server AI Online Bermasalah",
+              "Gagal menghubungi server AI (Groq/Gemini). Aplikasi otomatis beralih menggunakan kuesioner bawaan.\n\nDetail: " + cleanErrorMessage(e.message)
+            );
           }
         }
 
