@@ -3,6 +3,7 @@ import { Asset } from 'expo-asset';
 import { MODEL_LOCAL_URI } from './modelDownloader';
 import { getAiMode, setAiMode } from './aiSettings';
 import { analyzeImageOnline } from './onlineRunner';
+import { NativeModules } from 'react-native';
 
 // Keep legacy bypassMode variable in sync with aiSettings
 export function isBypassMode(): boolean {
@@ -43,6 +44,9 @@ async function getModelPath(): Promise<string> {
  * Execute real ONNX inference on the MobileNetV2 model
  */
 async function runLocalONNXInference(imageUri: string | null): Promise<number> {
+  if (!NativeModules.Onnxruntime) {
+    throw new Error('ONNX Runtime native module is not available (e.g. running in Expo Go). Please enable Bypass Mode or build a custom Development Client to run real ONNX models.');
+  }
   const { InferenceSession, Tensor } = require('onnxruntime-react-native');
   
   const rawModelPath = await getModelPath();

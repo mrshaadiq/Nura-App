@@ -14,6 +14,8 @@ import QuestionnaireScreen from './screens/QuestionnaireScreen';
 import ScannerScreen from './screens/ScannerScreen';
 import ResultsScreen from './screens/ResultsScreen';
 import HistoryScreen from './screens/HistoryScreen';
+import EducationScreen from './screens/EducationScreen';
+import FaskesScreen from './screens/FaskesScreen';
 
 function AppContent() {
   const { currentScreen, params } = useAppNavigation();
@@ -51,6 +53,12 @@ function AppContent() {
           params={params} 
           isActive={currentScreen === 'History'} 
         />
+      )}
+      {currentScreen === 'Education' && (
+        <EducationScreen />
+      )}
+      {currentScreen === 'Faskes' && (
+        <FaskesScreen />
       )}
     </View>
   );

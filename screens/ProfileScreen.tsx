@@ -5,207 +5,221 @@ import {
   View,
   TextInput,
   TouchableOpacity,
-  ScrollView,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
-  Alert
+  Alert,
+  ScrollView,
+  StatusBar
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { addPatient } from '../database/database';
 import { useAppNavigation } from '../navigation/NavigationContext';
+import { ChevronLeft, WifiOff } from 'lucide-react-native';
 
 export default function ProfileScreen() {
   const { navigate } = useAppNavigation();
   const [nama, setNama] = useState('');
   const [gender, setGender] = useState<'L' | 'P' | null>(null);
-  
-  // Custom Date Selectors
-  const [day, setDay] = useState('');
-  const [month, setMonth] = useState('');
-  const [year, setYear] = useState('');
+  const [dobText, setDobText] = useState(''); // dd/mm/yyyy
 
-  const months = [
-    { label: 'Januari', val: '01' },
-    { label: 'Februari', val: '02' },
-    { label: 'Maret', val: '03' },
-    { label: 'April', val: '04' },
-    { label: 'Mei', val: '05' },
-    { label: 'Juni', val: '06' },
-    { label: 'Juli', val: '07' },
-    { label: 'Agustus', val: '08' },
-    { label: 'September', val: '09' },
-    { label: 'Oktober', val: '10' },
-    { label: 'November', val: '11' },
-    { label: 'Desember', val: '12' }
-  ];
+  // Active state for focus rings
+  const [nameFocused, setNameFocused] = useState(false);
+  const [dobFocused, setDobFocused] = useState(false);
+
+  // Auto-format dates as the user types (dd/mm/yyyy)
+  const handleDobChange = (text: string) => {
+    // Keep only numbers
+    const clean = text.replace(/[^0-9]/g, '');
+    let formatted = '';
+    
+    if (clean.length > 0) {
+      formatted = clean.substring(0, 2);
+    }
+    if (clean.length > 2) {
+      formatted += '/' + clean.substring(2, 4);
+    }
+    if (clean.length > 4) {
+      formatted += '/' + clean.substring(4, 8);
+    }
+    setDobText(formatted);
+  };
 
   const handleRegister = async () => {
     if (!nama.trim()) {
-      Alert.alert('Data Belum Lengkap', 'Silakan masukkan nama lengkap pasien.');
+      Alert.alert('Data Belum Lengkap', 'Silakan masukkan nama lengkap anak.');
       return;
     }
     if (!gender) {
       Alert.alert('Data Belum Lengkap', 'Silakan pilih jenis kelamin.');
       return;
     }
-    
-    // Date validation
-    const dInt = parseInt(day);
-    const mInt = parseInt(month);
-    const yInt = parseInt(year);
-    
-    if (isNaN(dInt) || dInt < 1 || dInt > 31) {
-      Alert.alert('Format Salah', 'Silakan masukkan tanggal lahir (1-31) yang valid.');
-      return;
-    }
-    if (isNaN(mInt) || mInt < 1 || mInt > 12) {
-      Alert.alert('Format Salah', 'Silakan masukkan bulan lahir yang valid.');
-      return;
-    }
-    const currentYear = new Date().getFullYear();
-    if (isNaN(yInt) || yInt < 1900 || yInt > currentYear) {
-      Alert.alert('Format Salah', `Silakan masukkan tahun lahir yang valid (1900 - ${currentYear}).`);
+    if (dobText.length < 10) {
+      Alert.alert('Format Salah', 'Silakan masukkan tanggal lahir lengkap dengan format dd/mm/yyyy.');
       return;
     }
 
-    const formattedDay = day.padStart(2, '0');
-    const formattedMonth = month.padStart(2, '0');
+    const parts = dobText.split('/');
+    if (parts.length !== 3) {
+      Alert.alert('Format Salah', 'Silakan gunakan format dd/mm/yyyy.');
+      return;
+    }
+
+    const day = parseInt(parts[0]);
+    const month = parseInt(parts[1]);
+    const year = parseInt(parts[2]);
+
+    if (isNaN(day) || day < 1 || day > 31) {
+      Alert.alert('Tanggal Salah', 'Masukkan tanggal lahir yang valid (01 - 31).');
+      return;
+    }
+    if (isNaN(month) || month < 1 || month > 12) {
+      Alert.alert('Bulan Salah', 'Masukkan bulan lahir yang valid (01 - 12).');
+      return;
+    }
+
+    const currentYear = new Date().getFullYear();
+    if (isNaN(year) || year < 1990 || year > currentYear) {
+      Alert.alert('Tahun Salah', `Masukkan tahun lahir yang valid (1990 - ${currentYear}).`);
+      return;
+    }
+
+    const formattedDay = parts[0].padStart(2, '0');
+    const formattedMonth = parts[1].padStart(2, '0');
     const dob = `${year}-${formattedMonth}-${formattedDay}`;
 
-    // Verify date is valid calendar date
-    const parsedDate = new Date(dob);
-    if (isNaN(parsedDate.getTime())) {
-      Alert.alert('Tanggal Tidak Valid', 'Silakan periksa kembali kombinasi hari, bulan, dan tahun lahir.');
+    // Validate if it is a real calendar date
+    const testDate = new Date(dob);
+    if (isNaN(testDate.getTime())) {
+      Alert.alert('Tanggal Tidak Valid', 'Silakan periksa kembali kombinasi tanggal, bulan, dan tahun lahir.');
       return;
     }
 
     try {
       const patientId = await addPatient(nama.trim(), dob, gender);
-      console.log("Patient registered with ID:", patientId);
-      // Navigate to the questionnaire directly
+      console.log("[Profile] Child registered with ID:", patientId);
+      // Navigate to the Questionnaire/Measurements screen
       navigate('Questionnaire', { patientId });
     } catch (error) {
-      console.error("Failed to register patient:", error);
-      Alert.alert('Error', 'Gagal mendaftarkan pasien ke database.');
+      console.error("[Profile] Failed to register child:", error);
+      Alert.alert('Error', 'Gagal mendaftarkan profil anak ke database.');
     }
   };
 
+  const isFormValid = nama.trim() && gender && dobText.length === 10;
+
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+
+      {/* Simulation Status Bar Area */}
+      <View style={styles.statusBarSim}>
+        <Text style={styles.timeSim}>9:41</Text>
+        <View style={styles.offlineBadge}>
+          <WifiOff size={13} color="#2D6B66" strokeWidth={2.5} />
+          <Text style={styles.offlineText}>Offline</Text>
+        </View>
+      </View>
+
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+          {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity style={styles.backBtn} onPress={() => navigate('Home')}>
-              <Text style={styles.backBtnText}>← Kembali</Text>
+              <ChevronLeft size={22} color="#1A2332" strokeWidth={2.5} />
             </TouchableOpacity>
-            <Text style={styles.title}>Registrasi Pasien</Text>
-            <Text style={styles.subtitle}>Masukkan biodata dasar pasien sebelum memulai skrining.</Text>
+            <Text style={styles.title}>Profil Anak</Text>
+            <View style={{ width: 44 }} />
           </View>
 
+          {/* Form */}
           <View style={styles.form}>
             {/* Nama Lengkap */}
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Nama Lengkap Pasien</Text>
+              <Text style={styles.label}>Nama Anak</Text>
               <TextInput
-                style={styles.input}
-                placeholder="Contoh: Muhammad Budi"
-                placeholderTextColor="#94A3B8"
+                style={[styles.input, nameFocused && styles.inputFocused]}
+                placeholder="eve"
+                placeholderTextColor="#A0AEC0"
                 value={nama}
                 onChangeText={setNama}
+                onFocus={() => setNameFocused(true)}
+                onBlur={() => setNameFocused(false)}
+              />
+            </View>
+
+            {/* Tanggal Lahir */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Masukkan Tanggal Lahir</Text>
+              <TextInput
+                style={[styles.input, dobFocused && styles.inputFocused]}
+                placeholder="dd/mm/yyyy"
+                placeholderTextColor="#A0AEC0"
+                keyboardType="number-pad"
+                maxLength={10}
+                value={dobText}
+                onChangeText={handleDobChange}
+                onFocus={() => setDobFocused(true)}
+                onBlur={() => setDobFocused(false)}
               />
             </View>
 
             {/* Jenis Kelamin */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Jenis Kelamin</Text>
-              <View style={styles.genderContainer}>
+              <View style={styles.genderRow}>
                 <TouchableOpacity
                   style={[
                     styles.genderCard,
-                    gender === 'L' && styles.genderCardSelected,
-                    { marginRight: 8 }
+                    gender === 'L' ? styles.genderCardActive : styles.genderCardInactive
                   ]}
                   onPress={() => setGender('L')}
                 >
-                  <Text style={[styles.genderEmoji, gender === 'L' && styles.textSelected]}>👦</Text>
-                  <Text style={[styles.genderLabel, gender === 'L' && styles.textSelected]}>Laki-laki</Text>
-                  <Text style={[styles.genderSub, gender === 'L' && styles.textMutedSelected]}>L</Text>
+                  <Text style={[styles.genderText, gender === 'L' ? styles.genderTextActive : styles.genderTextInactive]}>
+                    👦 Laki-laki
+                  </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   style={[
                     styles.genderCard,
-                    gender === 'P' && styles.genderCardSelected,
-                    { marginLeft: 8 }
+                    gender === 'P' ? styles.genderCardActive : styles.genderCardInactive
                   ]}
                   onPress={() => setGender('P')}
                 >
-                  <Text style={[styles.genderEmoji, gender === 'P' && styles.textSelected]}>👧</Text>
-                  <Text style={[styles.genderLabel, gender === 'P' && styles.textSelected]}>Perempuan</Text>
-                  <Text style={[styles.genderSub, gender === 'P' && styles.textMutedSelected]}>P</Text>
+                  <Text style={[styles.genderText, gender === 'P' ? styles.genderTextActive : styles.genderTextInactive]}>
+                    👧 Perempuan
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
 
-            {/* Tanggal Lahir (DOB) */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Tanggal Lahir</Text>
-              <View style={styles.dateInputsContainer}>
-                {/* Hari */}
-                <View style={[styles.dateInputWrapper, { flex: 1.2 }]}>
-                  <Text style={styles.dateSubLabel}>Hari (DD)</Text>
-                  <TextInput
-                    style={styles.dateInput}
-                    placeholder="25"
-                    placeholderTextColor="#94A3B8"
-                    keyboardType="number-pad"
-                    maxLength={2}
-                    value={day}
-                    onChangeText={setDay}
-                  />
-                </View>
-
-                {/* Bulan */}
-                <View style={[styles.dateInputWrapper, { flex: 1.5, marginHorizontal: 8 }]}>
-                  <Text style={styles.dateSubLabel}>Bulan (MM)</Text>
-                  <TextInput
-                    style={styles.dateInput}
-                    placeholder="12"
-                    placeholderTextColor="#94A3B8"
-                    keyboardType="number-pad"
-                    maxLength={2}
-                    value={month}
-                    onChangeText={setMonth}
-                  />
-                </View>
-
-                {/* Tahun */}
-                <View style={[styles.dateInputWrapper, { flex: 1.8 }]}>
-                  <Text style={styles.dateSubLabel}>Tahun (YYYY)</Text>
-                  <TextInput
-                    style={styles.dateInput}
-                    placeholder="2024"
-                    placeholderTextColor="#94A3B8"
-                    keyboardType="number-pad"
-                    maxLength={4}
-                    value={year}
-                    onChangeText={setYear}
-                  />
-                </View>
-              </View>
-              <Text style={styles.dobHint}>Contoh: Hari: 12, Bulan: 08, Tahun: 2024</Text>
-            </View>
-
             {/* Submit Button */}
-            <TouchableOpacity style={styles.submitBtn} onPress={handleRegister}>
-              <Text style={styles.submitBtnText}>Daftarkan Pasien & Mulai</Text>
+            <TouchableOpacity
+              style={[styles.submitBtn, !isFormValid && styles.submitBtnDisabled]}
+              onPress={handleRegister}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.submitBtnText}>Lanjut  {'>'}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Bottom Nav Dots Simulator */}
+      <View style={styles.navDotsContainer}>
+        {[...Array(9)].map((_, i) => (
+          <View
+            key={i}
+            style={[
+              styles.navDot,
+              i === 1 ? styles.navDotActive : styles.navDotInactive
+            ]}
+          />
+        ))}
+      </View>
     </SafeAreaView>
   );
 }
@@ -213,147 +227,154 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#ffffff',
+  },
+  statusBarSim: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 0 : 8,
+    paddingBottom: 4,
+  },
+  timeSim: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1a2332',
+  },
+  offlineBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e8f5f4',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 9999,
+    gap: 4,
+  },
+  offlineText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#2d6b66',
   },
   scrollContent: {
-    paddingBottom: 40,
+    paddingBottom: 60,
   },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 12,
+    height: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
   },
   backBtn: {
-    marginBottom: 16,
-    alignSelf: 'flex-start',
-  },
-  backBtnText: {
-    color: '#4F46E5',
-    fontWeight: '600',
-    fontSize: 14,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#f0f4f8',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#1E293B',
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#64748B',
-    marginTop: 4,
-    lineHeight: 20,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1a2332',
+    textAlign: 'center',
   },
   form: {
     paddingHorizontal: 20,
-    marginTop: 8,
+    marginTop: 20,
   },
   inputGroup: {
-    marginBottom: 22,
+    marginBottom: 24,
   },
   label: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#334155',
-    marginBottom: 8,
+    color: '#1a2332',
+    marginBottom: 10,
   },
   input: {
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 12,
+    backgroundColor: '#f0f4f8',
+    height: 52,
+    borderRadius: 12, // xl
     paddingHorizontal: 16,
-    borderRadius: 12,
-    fontSize: 15,
-    color: '#1E293B',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    fontSize: 16, // prevent auto-zoom in iOS
+    color: '#1a2332',
+    fontWeight: '600',
+    borderWidth: 2,
+    borderColor: 'transparent',
   },
-  genderContainer: {
+  inputFocused: {
+    borderColor: '#1b5be8',
+    backgroundColor: '#f0f4f8',
+  },
+  genderRow: {
     flexDirection: 'row',
+    gap: 12,
   },
   genderCard: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    borderRadius: 16,
-    paddingVertical: 16,
+    height: 52,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.02,
-    shadowRadius: 6,
-    elevation: 1,
+    borderWidth: 2,
   },
-  genderCardSelected: {
-    borderColor: '#4F46E5',
-    backgroundColor: '#EEF2FF',
+  genderCardActive: {
+    backgroundColor: '#1b5be8',
+    borderColor: '#1b5be8',
   },
-  genderEmoji: {
-    fontSize: 24,
-    marginBottom: 6,
+  genderCardInactive: {
+    backgroundColor: '#f0f4f8',
+    borderColor: 'transparent',
   },
-  genderLabel: {
+  genderText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#475569',
   },
-  genderSub: {
-    fontSize: 11,
-    color: '#94A3B8',
-    fontWeight: '600',
-    marginTop: 2,
+  genderTextActive: {
+    color: '#ffffff',
   },
-  textSelected: {
-    color: '#4F46E5',
-  },
-  textMutedSelected: {
-    color: '#818CF8',
-  },
-  dateInputsContainer: {
-    flexDirection: 'row',
-  },
-  dateInputWrapper: {
-    justifyContent: 'center',
-  },
-  dateSubLabel: {
-    fontSize: 11,
-    color: '#64748B',
-    marginBottom: 4,
-    fontWeight: '600',
-  },
-  dateInput: {
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 12,
-    textAlign: 'center',
-    borderRadius: 12,
-    fontSize: 15,
-    color: '#1E293B',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  dobHint: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 6,
-    fontStyle: 'italic',
+  genderTextInactive: {
+    color: '#5a6b7e',
   },
   submitBtn: {
-    backgroundColor: '#4F46E5',
-    paddingVertical: 14,
-    borderRadius: 12,
+    backgroundColor: '#1b5be8',
+    height: 56,
+    borderRadius: 16, // 2xl
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#4F46E5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
     marginTop: 10,
   },
+  submitBtnDisabled: {
+    backgroundColor: '#a0aec0',
+  },
   submitBtnText: {
-    color: '#FFFFFF',
+    color: '#ffffff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  navDotsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'absolute',
+    bottom: 24,
+    left: 0,
+    right: 0,
+    gap: 6,
+  },
+  navDot: {
+    height: 6,
+  },
+  navDotActive: {
+    width: 18,
+    borderRadius: 9999,
+    backgroundColor: '#1b5be8',
+  },
+  navDotInactive: {
+    width: 6,
+    borderRadius: 9999,
+    backgroundColor: '#cbd5e0',
   },
 });

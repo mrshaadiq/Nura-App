@@ -26,7 +26,13 @@
       "expo-sqlite",
       "expo-sharing",
       "onnxruntime-react-native",
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Nura-App to access your camera"
+        }
+      ]
     ]
   }
 }

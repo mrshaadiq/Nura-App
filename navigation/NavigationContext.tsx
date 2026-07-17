@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
-export type ScreenName = 'Home' | 'Profile' | 'Questionnaire' | 'Scanner' | 'Results' | 'History';
+export type ScreenName = 'Home' | 'Profile' | 'Questionnaire' | 'Scanner' | 'Results' | 'History' | 'Education' | 'Faskes';
 
 export interface NavState {
   screen: ScreenName;

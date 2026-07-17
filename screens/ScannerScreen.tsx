@@ -4,14 +4,17 @@ import {
   Text,
   View,
   TouchableOpacity,
-  SafeAreaView,
   ActivityIndicator,
   Animated,
   Easing,
   Dimensions,
   Image,
-  Alert
+  Alert,
+  NativeModules,
+  Platform,
+  StatusBar
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { analyzeEyes, analyzeNails, analyzeFace, isBypassMode, setBypassMode } from '../ai/onnxRunner';
@@ -22,8 +25,9 @@ import { getAiMode, setAiMode, AiMode } from '../ai/aiSettings';
 import { generateIntegratedDiagnosisOnline } from '../ai/onlineRunner';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import { ChevronLeft, WifiOff, Check, Cpu, Info, RefreshCw, Camera } from 'lucide-react-native';
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const { width: screenWidth } = Dimensions.get('window');
 const overlaySize = screenWidth * 0.75;
 
 const cleanErrorMessage = (msg: string): string => {
@@ -44,12 +48,547 @@ const cleanErrorMessage = (msg: string): string => {
   return msg;
 };
 
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
+  containerDark: {
+    flex: 1,
+    backgroundColor: '#0F172A',
+  },
+  statusBarSim: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 0 : 8,
+    paddingBottom: 4,
+  },
+  timeSim: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1a2332',
+  },
+  offlineBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e8f5f4',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 9999,
+    gap: 4,
+  },
+  offlineText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#2d6b66',
+  },
+  setupHeader: {
+    height: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+  },
+  backBtnSetup: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#f0f4f8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  setupTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1a2332',
+  },
+  setupContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingBottom: 60,
+  },
+  checkCircleLarge: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: '#e6f6f5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  setupStatusTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#1a2332',
+  },
+  setupStatusSubtitle: {
+    fontSize: 14,
+    color: '#5a6b7e',
+    fontWeight: '500',
+    marginTop: 6,
+    textAlign: 'center',
+  },
+  modelStatusCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e6f4f3',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    width: '100%',
+    marginTop: 32,
+    marginBottom: 24,
+  },
+  modelIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  modelTexts: {
+    flex: 1,
+  },
+  modelNameText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#2d6b66',
+  },
+  modelStatusText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#5a6b7e',
+    marginTop: 2,
+  },
+  startScanBtn: {
+    backgroundColor: '#1b5be8',
+    height: 56,
+    borderRadius: 16,
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  startScanBtnText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  header: {
+    height: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    zIndex: 10,
+  },
+  backBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  title: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  offlineBadgeDark: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 164, 154, 0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 9999,
+    gap: 4,
+  },
+  offlineTextDark: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#00A49A',
+  },
+  stepTabs: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 12,
+    backgroundColor: '#0F172A',
+  },
+  stepCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepCircleActive: {
+    backgroundColor: '#1b5be8',
+  },
+  stepCircleCompleted: {
+    backgroundColor: '#22c55e',
+  },
+  stepCircleInactive: {
+    backgroundColor: '#334155',
+  },
+  stepCircleText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  stepCircleTextActive: {
+    color: '#ffffff',
+  },
+  stepCircleTextInactive: {
+    color: '#8a9ab0',
+  },
+  stepConnector: {
+    width: 32,
+    height: 3,
+  },
+  stepConnectorActive: {
+    backgroundColor: '#22c55e',
+  },
+  stepConnectorInactive: {
+    backgroundColor: '#334155',
+  },
+  cameraWrapper: {
+    flex: 1,
+    backgroundColor: '#000000',
+    marginHorizontal: 20,
+    borderRadius: 24,
+    overflow: 'hidden',
+  },
+  camera: {
+    flex: 1,
+  },
+  simulatedCamera: {
+    flex: 1,
+    backgroundColor: '#1e293b',
+  },
+  previewContainer: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
+  previewImage: {
+    flex: 1,
+    resizeMode: 'cover',
+  },
+  simulatedCapturedImage: {
+    flex: 1,
+    backgroundColor: '#1E293B',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  capturedOverlay: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(15, 23, 42, 0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkmarkCircleSmall: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#22c55e',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  photoTakenLabel: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: 10,
+  },
+  photoTakenLabelSmall: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  overlayContainer: {
+    ...StyleSheet.absoluteFill,
+    justifyContent: 'space-between',
+  },
+  overlayMask: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+  },
+  overlayMiddleRow: {
+    flexDirection: 'row',
+    height: overlaySize,
+  },
+  guideBox: {
+    width: overlaySize,
+    height: overlaySize,
+    position: 'relative',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  cornerTL: {
+    position: 'absolute',
+    top: -2,
+    left: -2,
+    width: 24,
+    height: 24,
+    borderTopWidth: 4,
+    borderLeftWidth: 4,
+    borderColor: '#1b5be8',
+  },
+  cornerTR: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 24,
+    height: 24,
+    borderTopWidth: 4,
+    borderRightWidth: 4,
+    borderColor: '#1b5be8',
+  },
+  cornerBL: {
+    position: 'absolute',
+    bottom: -2,
+    left: -2,
+    width: 24,
+    height: 24,
+    borderBottomWidth: 4,
+    borderLeftWidth: 4,
+    borderColor: '#1b5be8',
+  },
+  cornerBR: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 24,
+    height: 24,
+    borderBottomWidth: 4,
+    borderRightWidth: 4,
+    borderColor: '#1b5be8',
+  },
+  scanLine: {
+    position: 'absolute',
+    left: 2,
+    right: 2,
+    height: 3,
+    backgroundColor: '#00A49A',
+  },
+  footer: {
+    backgroundColor: '#0F172A',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 48,
+  },
+  instructionCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+  },
+  instructionText: {
+    fontSize: 13,
+    color: '#1a2332',
+    textAlign: 'center',
+    lineHeight: 18,
+    fontWeight: '700',
+  },
+  warningToast: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fffbeb',
+    borderWidth: 1.5,
+    borderColor: '#fde68a',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 16,
+  },
+  warningToastText: {
+    flex: 1,
+    fontSize: 11,
+    color: '#92400e',
+    fontWeight: '600',
+    lineHeight: 15,
+  },
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  ghostBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    height: 48,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+  },
+  ghostBtnHidden: {
+    opacity: 0,
+  },
+  ghostBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  shutterBtn: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 5,
+    borderColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shutterBtnInner: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#1b5be8',
+  },
+  confirmBtn: {
+    backgroundColor: '#1b5be8',
+    height: 48,
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmBtnDisabled: {
+    backgroundColor: '#334155',
+  },
+  confirmBtnText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  permissionContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    paddingBottom: 40,
+  },
+  permissionEmoji: {
+    fontSize: 60,
+    marginBottom: 16,
+  },
+  permissionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1a2332',
+    marginBottom: 8,
+  },
+  permissionSubtitle: {
+    fontSize: 13,
+    color: '#5a6b7e',
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 24,
+    fontWeight: '500',
+  },
+  permissionBtn: {
+    backgroundColor: '#1b5be8',
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginBottom: 12,
+    width: '100%',
+    alignItems: 'center',
+  },
+  permissionBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  bypassBtn: {
+    backgroundColor: '#f0f4f8',
+    paddingVertical: 14,
+    borderRadius: 12,
+    width: '100%',
+    alignItems: 'center',
+  },
+  bypassBtnText: {
+    color: '#5a6b7e',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  processingOverlay: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(15, 23, 42, 0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 100,
+  },
+  processingCard: {
+    backgroundColor: '#FFFFFF',
+    padding: 20,
+    borderRadius: 16,
+    alignItems: 'center',
+    width: screenWidth * 0.75,
+  },
+  processingTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1a2332',
+    marginTop: 12,
+  },
+  navDotsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'absolute',
+    bottom: 24,
+    left: 0,
+    right: 0,
+    gap: 6,
+  },
+  navDotsContainerDark: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'absolute',
+    bottom: 12,
+    left: 0,
+    right: 0,
+    gap: 6,
+  },
+  navDot: {
+    height: 6,
+  },
+  navDotActive: {
+    width: 18,
+    borderRadius: 9999,
+    backgroundColor: '#1b5be8',
+  },
+  navDotInactive: {
+    width: 6,
+    borderRadius: 9999,
+    backgroundColor: '#cbd5e0',
+  },
+  centerContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#5a6b7e',
+    fontWeight: '600',
+  },
+});
+
 interface ScannerScreenProps {
   params: {
     patientId: number;
     usiaTahun: number;
     usiaBulan: number;
-    score: number; // Questionnaire score
+    score: number;
     answersJson: string;
     parentalNotes: string;
   };
@@ -61,11 +600,18 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
   const { patientId, usiaTahun, usiaBulan, score: questionnaireScore, answersJson, parentalNotes } = params;
   
   const [permission, requestPermission] = useCameraPermissions();
+  
+  // Phase state: 'setup' (Persiapan Sistem) or 'scanning' (Kamera Pemindaian)
+  const [currentPhase, setCurrentPhase] = useState<'setup' | 'scanning'>('setup');
+  
   const [currentStep, setCurrentStep] = useState(1); // 1: Mata, 2: Kuku, 3: Wajah
   const [processing, setProcessing] = useState(false);
   const [processingText, setProcessingText] = useState('');
   
-  // Scanned data state
+  // Temporal captured photo path for previewing
+  const [tempCapturedPath, setTempCapturedPath] = useState<string | null>(null);
+
+  // Saved step photos paths
   const [eyePhotoPath, setEyePhotoPath] = useState<string | null>(null);
   const [nailPhotoPath, setNailPhotoPath] = useState<string | null>(null);
   const [facePhotoPath, setFacePhotoPath] = useState<string | null>(null);
@@ -81,21 +627,27 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
   const [downloadBytesWritten, setDownloadBytesWritten] = useState(0);
   const [downloadBytesTotal, setDownloadBytesTotal] = useState(0);
   const [modelReady, setModelReady] = useState(true); // Defaults to true because MobileNetV2 is bundled in the assets
+  const [useSimulatedCamera, setUseSimulatedCamera] = useState(false);
   const cameraRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (permission?.granted) {
+      setUseSimulatedCamera(false);
+    }
+  }, [permission?.granted]);
 
   // Scanning animation
   const scanLineAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (isActive) {
-      // Reset scanning steps
+      setCurrentPhase('setup');
       setCurrentStep(1);
       setProcessing(false);
+      setTempCapturedPath(null);
       setEyePhotoPath(null);
       setNailPhotoPath(null);
       setFacePhotoPath(null);
-      
-      // Start scanning animation loop
       startScanningAnimation();
     }
   }, [isActive]);
@@ -123,19 +675,19 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
   const getStepTitle = () => {
     switch (currentStep) {
       case 1:
-        return "Langkah 1/3: Pemindaian Mata";
+        return "Ambil Foto Kelopak Mata";
       case 2:
-        return "Langkah 2/3: Pemindaian Kuku";
+        return "Ambil Foto Kuku Jari";
       case 3:
       default:
-        return "Langkah 3/3: Pemindaian Wajah";
+        return "Ambil Foto Wajah";
     }
   };
 
   const getStepInstruction = () => {
     switch (currentStep) {
       case 1:
-        return "Posisikan mata anak (fokus ke area kelopak mata bawah/konjungtiva) di dalam area kotak pemandu.";
+        return "Tarik perlahan kelopak mata bawah. Tahan dalam cahaya alami.";
       case 2:
         return "Posisikan kuku jari tangan anak di dalam area kotak pemandu.";
       case 3:
@@ -304,8 +856,10 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
       setDownloadingModel(false);
     }
   };
+
+  // Click Shutter Button
   const handleCapture = async () => {
-    if (processing) return;
+    if (processing || tempCapturedPath) return;
 
     try {
       setProcessing(true);
@@ -313,22 +867,19 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
 
       let photoUri = null;
 
-      if (!isBypass && cameraRef.current) {
-        // Take a real photo
+      if (!useSimulatedCamera && cameraRef.current) {
         const photo = await cameraRef.current.takePictureAsync({
           quality: 0.8,
           skipProcessing: true
         });
         photoUri = photo.uri;
       } else {
-        // Bypass or no camera reference - use a simulated capture
         console.log("[Scanner] Using simulated mock capture");
         photoUri = "simulated_capture.jpg";
       }
 
       setProcessingText("Mengompresi gambar...");
 
-      // Resize/Compress using ImageManipulator (except for simulated assets)
       let compressedUri = photoUri;
       if (photoUri && photoUri !== "simulated_capture.jpg") {
         try {
@@ -342,30 +893,46 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
           compressedUri = manipResult.uri;
           console.log("[Scanner] Compressed image successfully to:", compressedUri);
         } catch (manipError) {
-          console.warn("[Scanner] Image manipulation failed, falling back to raw photo:", manipError);
+          console.warn("[Scanner] Image manipulation failed:", manipError);
         }
       }
 
-      setProcessingText("Menganalisis dengan AI Lokal...");
+      setTempCapturedPath(compressedUri);
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Error", "Terjadi kesalahan saat memproses gambar.");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  // Click Lanjut after photo is taken
+  const handleConfirmPhoto = async () => {
+    if (!tempCapturedPath) return;
+
+    try {
+      setProcessing(true);
+      setProcessingText("Menganalisis gambar...");
 
       if (currentStep === 1) {
-        setEyePhotoPath(compressedUri);
-        const analysis = await analyzeEyes(compressedUri, questionnaireScore, usiaTahun);
+        const analysis = await analyzeEyes(tempCapturedPath, questionnaireScore, usiaTahun);
+        setEyePhotoPath(tempCapturedPath);
         setEyeAnalysis(analysis);
+        setTempCapturedPath(null);
         setCurrentStep(2);
       } else if (currentStep === 2) {
-        setNailPhotoPath(compressedUri);
-        const analysis = await analyzeNails(compressedUri, questionnaireScore, usiaTahun);
+        const analysis = await analyzeNails(tempCapturedPath, questionnaireScore, usiaTahun);
+        setNailPhotoPath(tempCapturedPath);
         setNailAnalysis(analysis);
+        setTempCapturedPath(null);
         setCurrentStep(3);
       } else {
-        setFacePhotoPath(compressedUri);
-        const analysis = await analyzeFace(compressedUri, questionnaireScore, usiaTahun);
+        const analysis = await analyzeFace(tempCapturedPath, questionnaireScore, usiaTahun);
+        setFacePhotoPath(tempCapturedPath);
         setFaceAnalysis(analysis);
-        
-        // Processing final output
-        setProcessingText("Menyimpan hasil pemeriksaan...");
-        await saveScreeningResult(eyePhotoPath, nailPhotoPath, compressedUri, eyeAnalysis, nailAnalysis, analysis);
+
+        setProcessingText("Menyimpan hasil...");
+        await saveScreeningResult(eyePhotoPath, nailPhotoPath, tempCapturedPath, eyeAnalysis, nailAnalysis, analysis);
       }
     } catch (error: any) {
       console.error(error);
@@ -379,6 +946,10 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
     } finally {
       setProcessing(false);
     }
+  };
+
+  const handleRetake = () => {
+    setTempCapturedPath(null);
   };
 
   const saveScreeningResult = async (
@@ -634,15 +1205,14 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
         status_perbandingan: statusPerbandingan
       });
 
-      console.log("Saved screening session with ID:", sessionId);
+      console.log("[Scanner] Saved session with ID:", sessionId);
       navigate('Results', { sessionId });
     } catch (e) {
-      console.error("Save screening session error:", e);
+      console.error("[Scanner] Save error:", e);
       Alert.alert("Error", "Gagal menyimpan riwayat pemindaian.");
     }
   };
 
-  // Move scanning line
   const translateY = scanLineAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [0, overlaySize - 4]
@@ -651,15 +1221,24 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
   if (!permission) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#4F46E5" />
+        <ActivityIndicator size="large" color="#1b5be8" />
         <Text style={styles.loadingText}>Meminta izin kamera...</Text>
       </View>
     );
   }
 
-  if (!permission.granted && !isBypass) {
+  if (!permission.granted && !useSimulatedCamera) {
     return (
       <SafeAreaView style={styles.container}>
+        {/* Simulation Status Bar Area */}
+        <View style={styles.statusBarSim}>
+          <Text style={styles.timeSim}>9:41</Text>
+          <View style={styles.offlineBadge}>
+            <WifiOff size={13} color="#2D6B66" strokeWidth={2.5} />
+            <Text style={styles.offlineText}>Offline</Text>
+          </View>
+        </View>
+        
         <View style={styles.permissionContainer}>
           <Text style={styles.permissionEmoji}>📷</Text>
           <Text style={styles.permissionTitle}>Akses Kamera Diperlukan</Text>
@@ -669,92 +1248,288 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
           <TouchableOpacity style={styles.permissionBtn} onPress={requestPermission}>
             <Text style={styles.permissionBtnText}>Izinkan Kamera</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.bypassBtn} onPress={selectAiMode}>
-            <Text style={styles.bypassBtnText}>Gunakan Mode Simulasi (Bypass AI)</Text>
+          <TouchableOpacity style={styles.bypassBtn} onPress={() => setUseSimulatedCamera(true)}>
+            <Text style={styles.bypassBtnText}>Gunakan Kamera Simulasi (Bypass)</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
   }
 
+  // PHASE 1: Persiapan Sistem
+  if (currentPhase === 'setup') {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+        <View style={styles.statusBarSim}>
+          <Text style={styles.timeSim}>9:41</Text>
+          <View style={styles.offlineBadge}>
+            <WifiOff size={13} color="#2D6B66" strokeWidth={2.5} />
+            <Text style={styles.offlineText}>Offline</Text>
+          </View>
+        </View>
+
+        <View style={styles.setupHeader}>
+          <TouchableOpacity style={styles.backBtnSetup} onPress={() => navigate('Home')}>
+            <ChevronLeft size={22} color="#1A2332" strokeWidth={2.5} />
+          </TouchableOpacity>
+          <Text style={styles.setupTitle}>Persiapan Sistem</Text>
+          <View style={{ width: 44 }} />
+        </View>
+
+        <View style={styles.setupContent}>
+          <View style={styles.checkCircleLarge}>
+            <Check size={48} color="#00A49A" strokeWidth={4} />
+          </View>
+          
+          <Text style={styles.setupStatusTitle}>Sistem Siap</Text>
+          <Text style={styles.setupStatusSubtitle}>
+            Pemeriksaan visual & gizi terintegrasi
+          </Text>
+
+          <View style={[styles.modelStatusCard, { marginTop: 24, marginBottom: 8 }]}>
+            <View style={styles.modelIconBg}>
+              <Cpu size={20} color="#00A49A" strokeWidth={2.5} />
+            </View>
+            <View style={styles.modelTexts}>
+              <Text style={styles.modelNameText}>NURA-Scanner v2.1 (AI)</Text>
+              <Text style={styles.modelStatusText}>
+                {isBypass ? "Simulasi (Bypass Mode)" : "ONNX Engine Aktif"}
+              </Text>
+            </View>
+          </View>
+
+          <View style={[styles.modelStatusCard, { marginTop: 0, marginBottom: 24, backgroundColor: useSimulatedCamera ? '#fffbeb' : '#e6f4f3' }]}>
+            <View style={styles.modelIconBg}>
+              <Camera size={20} color={useSimulatedCamera ? '#d97706' : '#00A49A'} strokeWidth={2.5} />
+            </View>
+            <View style={styles.modelTexts}>
+              <Text style={styles.modelNameText}>Kamera & Sensor Fisik</Text>
+              <Text style={styles.modelStatusText}>
+                {useSimulatedCamera ? "Simulasi Kamera Aktif" : "Kamera Fisik Siap"}
+              </Text>
+            </View>
+            {/* Allow toggle if permission is granted, otherwise force simulation */}
+            {permission?.granted && (
+              <TouchableOpacity 
+                style={{
+                  backgroundColor: '#ffffff',
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: '#cbd5e0'
+                }}
+                onPress={() => setUseSimulatedCamera(!useSimulatedCamera)}
+              >
+                <Text style={{ fontSize: 11, fontWeight: '700', color: '#1a2332' }}>
+                  {useSimulatedCamera ? "Gunakan Kamera" : "Gunakan Simulasi"}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <TouchableOpacity
+            style={styles.startScanBtn}
+            onPress={() => setCurrentPhase('scanning')}
+          >
+            <Camera size={20} color="#ffffff" strokeWidth={2.5} style={{ marginRight: 8 }} />
+            <Text style={styles.startScanBtnText}>Mulai Pemeriksaan Fisik</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Bottom Nav Dots Simulator */}
+        <View style={styles.navDotsContainer}>
+          {[...Array(9)].map((_, i) => (
+            <View
+              key={i}
+              style={[
+                styles.navDot,
+                i === 4 ? styles.navDotActive : styles.navDotInactive
+              ]}
+            />
+          ))}
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // PHASE 2: Kamera Pemindaian
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.containerDark}>
+      <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
+
+      {/* Screen Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigate('Home')}>
-          <Text style={styles.backBtnText}>✕ Batal</Text>
+        <TouchableOpacity style={styles.backBtn} onPress={handleBackToSetup}>
+          <ChevronLeft size={22} color="#FFFFFF" strokeWidth={2.5} />
         </TouchableOpacity>
         <Text style={styles.title}>{getStepTitle()}</Text>
-      </View>
-
-      <View style={styles.cameraWrapper}>
-        {!isBypass ? (
-          <CameraView style={styles.camera} ref={cameraRef} facing="back" />
-        ) : (
-          <View style={styles.simulatedCamera}>
-            <Text style={styles.simulatedCameraEmoji}>🖥️</Text>
-            <Text style={styles.simulatedCameraText}>Mode Simulasi Aktif</Text>
-            <Text style={styles.simulatedCameraSub}>Menghasilkan data tangkapan mock</Text>
-          </View>
-        )}
-
-        {/* Camera overlay guide */}
-        <View style={styles.overlayContainer}>
-          <View style={styles.overlayMask} />
-          <View style={styles.overlayMiddleRow}>
-            <View style={styles.overlayMask} />
-            <View style={styles.guideBox}>
-              <View style={styles.cornerTL} />
-              <View style={styles.cornerTR} />
-              <View style={styles.cornerBL} />
-              <View style={styles.cornerBR} />
-              
-              {/* Scanning animation line */}
-              <Animated.View style={[styles.scanLine, { transform: [{ translateY }] }]} />
-            </View>
-            <View style={styles.overlayMask} />
-          </View>
-          <View style={styles.overlayMask} />
+        <View style={styles.offlineBadgeDark}>
+          <WifiOff size={12} color="#00A49A" strokeWidth={2.5} />
+          <Text style={styles.offlineTextDark}>Offline</Text>
         </View>
       </View>
 
+      {/* Step indicators (Kelopak Mata -> Kuku Jari -> Wajah Penuh) */}
+      <View style={styles.stepTabs}>
+        {[1, 2, 3].map(step => (
+          <React.Fragment key={step}>
+            <View style={[
+              styles.stepCircle,
+              step === currentStep ? styles.stepCircleActive : (step < currentStep ? styles.stepCircleCompleted : styles.stepCircleInactive)
+            ]}>
+              {step < currentStep ? (
+                <Check size={14} color="#ffffff" strokeWidth={3} />
+              ) : (
+                <Text style={[
+                  styles.stepCircleText,
+                  step === currentStep ? styles.stepCircleTextActive : styles.stepCircleTextInactive
+                ]}>
+                  {step}
+                </Text>
+              )}
+            </View>
+            {step < 3 && (
+              <View style={[
+                styles.stepConnector,
+                step < currentStep ? styles.stepConnectorActive : styles.stepConnectorInactive
+              ]} />
+            )}
+          </React.Fragment>
+        ))}
+      </View>
+
+      {/* Camera Viewfinder */}
+      <View style={styles.cameraWrapper}>
+        {tempCapturedPath ? (
+          /* Image Capture Preview */
+          <View style={styles.previewContainer}>
+            {tempCapturedPath === "simulated_capture.jpg" ? (
+              <View style={styles.simulatedCapturedImage}>
+                <Check size={52} color="#00A49A" strokeWidth={4} />
+                <Text style={styles.photoTakenLabel}>Foto diambil</Text>
+              </View>
+            ) : (
+              <View style={{ flex: 1, position: 'relative' }}>
+                <Image source={{ uri: tempCapturedPath }} style={styles.previewImage} />
+                <View style={styles.capturedOverlay}>
+                  <View style={styles.checkmarkCircleSmall}>
+                    <Check size={28} color="#ffffff" strokeWidth={4} />
+                  </View>
+                  <Text style={styles.photoTakenLabelSmall}>Foto diambil</Text>
+                </View>
+              </View>
+            )}
+          </View>
+        ) : !useSimulatedCamera ? (
+          /* Real Camera Stream */
+          <CameraView style={styles.camera} ref={cameraRef} facing="back">
+            <View style={styles.overlayContainer}>
+              <View style={styles.overlayMask} />
+              <View style={styles.overlayMiddleRow}>
+                <View style={styles.overlayMask} />
+                <View style={styles.guideBox}>
+                  <View style={styles.cornerTL} />
+                  <View style={styles.cornerTR} />
+                  <View style={styles.cornerBL} />
+                  <View style={styles.cornerBR} />
+                  
+                  {/* Scan Line */}
+                  <Animated.View style={[styles.scanLine, { transform: [{ translateY }] }]} />
+                </View>
+                <View style={styles.overlayMask} />
+              </View>
+              <View style={styles.overlayMask} />
+            </View>
+          </CameraView>
+        ) : (
+          /* Mock Viewfinder */
+          <View style={styles.simulatedCamera}>
+            <View style={styles.overlayContainer}>
+              <View style={styles.overlayMask} />
+              <View style={styles.overlayMiddleRow}>
+                <View style={styles.overlayMask} />
+                <View style={styles.guideBox}>
+                  <View style={styles.cornerTL} />
+                  <View style={styles.cornerTR} />
+                  <View style={styles.cornerBL} />
+                  <View style={styles.cornerBR} />
+                  <Animated.View style={[styles.scanLine, { transform: [{ translateY }] }]} />
+                </View>
+                <View style={styles.overlayMask} />
+              </View>
+              <View style={styles.overlayMask} />
+            </View>
+          </View>
+        )}
+      </View>
+        {/* Footer Area */}
       <View style={styles.footer}>
+        {/* Instruction text Card */}
         <View style={styles.instructionCard}>
           <Text style={styles.instructionText}>{getStepInstruction()}</Text>
         </View>
 
-        <View style={styles.actions}>
-          <TouchableOpacity style={styles.bypassToggle} onPress={selectAiMode}>
-            <Text style={styles.bypassToggleText}>
-              AI Mode:
-            </Text>
-            <View style={[
-              styles.toggleDotContainer, 
-              activeMode === 'online' && { backgroundColor: '#4F46E5', alignItems: 'center' },
-              activeMode === 'offline' && { backgroundColor: '#10B981', alignItems: 'center' },
-              activeMode === 'simulasi' && { backgroundColor: '#64748B', alignItems: 'center' }
-            ]}>
-              <Text style={{ color: '#FFF', fontSize: 8, fontWeight: '900', textAlign: 'center' }}>
-                {activeMode.toUpperCase()}
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.captureBtn} onPress={handleCapture} disabled={processing}>
-            <View style={styles.captureBtnInner} />
-          </TouchableOpacity>
-
-          {/* Dummy alignment item */}
-          <View style={{ width: 80 }} />
+        {/* Warning Toast Banner */}
+        <View style={styles.warningToast}>
+          <Info size={16} color="#d97706" strokeWidth={2.5} style={{ marginRight: 8 }} />
+          <Text style={styles.warningToastText}>
+            Pastikan anak berada di dekat cahaya alami untuk analisis yang akurat.
+          </Text>
         </View>
+
+        {/* Shutter & Controls Row */}
+        <View style={styles.actions}>
+          {/* Ulangi button */}
+          <TouchableOpacity
+            style={[styles.ghostBtn, !tempCapturedPath && styles.ghostBtnHidden]}
+            onPress={handleRetake}
+            disabled={!tempCapturedPath}
+          >
+            <RefreshCw size={16} color="#ffffff" strokeWidth={2.5} style={{ marginRight: 6 }} />
+            <Text style={styles.ghostBtnText}>Ulangi</Text>
+          </TouchableOpacity>
+
+          {/* Shutter Circle */}
+          {!tempCapturedPath ? (
+            <TouchableOpacity style={styles.shutterBtn} onPress={handleCapture} disabled={processing}>
+              <View style={styles.shutterBtnInner} />
+            </TouchableOpacity>
+          ) : (
+            <View style={{ width: 64, height: 64 }} />
+          )}
+
+          {/* Lanjut button */}
+          <TouchableOpacity
+            style={[styles.confirmBtn, !tempCapturedPath && styles.confirmBtnDisabled]}
+            onPress={handleConfirmPhoto}
+            disabled={!tempCapturedPath}
+          >
+            <Text style={styles.confirmBtnText}>Lanjut  {'>'}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Bottom Nav Dots Simulator */}
+      <View style={styles.navDotsContainerDark}>
+        {[...Array(9)].map((_, i) => (
+          <View
+            key={i}
+            style={[
+              styles.navDot,
+              i === 5 ? styles.navDotActive : styles.navDotInactive
+            ]}
+          />
+        ))}
       </View>
 
       {/* Processing Loader Overlay */}
       {processing && (
         <View style={styles.processingOverlay}>
           <View style={styles.processingCard}>
-            <ActivityIndicator size="large" color="#4F46E5" />
-            <Text style={styles.processingTitle}>Pemrosesan AI Lokal</Text>
-            <Text style={styles.processingSubtitle}>{processingText}</Text>
+            <ActivityIndicator size="large" color="#1b5be8" />
+            <Text style={styles.processingTitle}>{processingText}</Text>
           </View>
         </View>
       )}
@@ -776,317 +1551,14 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
           </View>
         </View>
       )}
-
-
     </SafeAreaView>
   );
-}
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0F172A', // Dark slate background for scanning screen
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  backBtn: {
-    marginRight: 16,
-  },
-  backBtnText: {
-    color: '#94A3B8',
-    fontWeight: '600',
-    fontSize: 15,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  cameraWrapper: {
-    flex: 1,
-    position: 'relative',
-    backgroundColor: '#000',
-  },
-  camera: {
-    ...StyleSheet.absoluteFill,
-  },
-  simulatedCamera: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: '#1E293B',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  simulatedCameraEmoji: {
-    fontSize: 64,
-    marginBottom: 12,
-  },
-  simulatedCameraText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  simulatedCameraSub: {
-    color: '#64748B',
-    fontSize: 13,
-    marginTop: 4,
-  },
-  overlayContainer: {
-    ...StyleSheet.absoluteFill,
-    justifyContent: 'space-between',
-  },
-  overlayMask: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.65)',
-  },
-  overlayMiddleRow: {
-    flexDirection: 'row',
-    height: overlaySize,
-  },
-  guideBox: {
-    width: overlaySize,
-    height: overlaySize,
-    position: 'relative',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  cornerTL: {
-    position: 'absolute',
-    top: -2,
-    left: -2,
-    width: 24,
-    height: 24,
-    borderTopWidth: 4,
-    borderLeftWidth: 4,
-    borderColor: '#4F46E5',
-  },
-  cornerTR: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
-    width: 24,
-    height: 24,
-    borderTopWidth: 4,
-    borderRightWidth: 4,
-    borderColor: '#4F46E5',
-  },
-  cornerBL: {
-    position: 'absolute',
-    bottom: -2,
-    left: -2,
-    width: 24,
-    height: 24,
-    borderBottomWidth: 4,
-    borderLeftWidth: 4,
-    borderColor: '#4F46E5',
-  },
-  cornerBR: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 24,
-    height: 24,
-    borderBottomWidth: 4,
-    borderRightWidth: 4,
-    borderColor: '#4F46E5',
-  },
-  scanLine: {
-    position: 'absolute',
-    left: 2,
-    right: 2,
-    height: 2,
-    backgroundColor: '#00F0FF',
-    shadowColor: '#00F0FF',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  footer: {
-    backgroundColor: '#0F172A',
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-    paddingTop: 16,
-  },
-  instructionCard: {
-    backgroundColor: '#1E293B',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#334155',
-  },
-  instructionText: {
-    fontSize: 13,
-    color: '#E2E8F0',
-    textAlign: 'center',
-    lineHeight: 18,
-    fontWeight: '500',
-  },
-  actions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 10,
-  },
-  bypassToggle: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 80,
-  },
-  bypassToggleText: {
-    color: '#94A3B8',
-    fontSize: 9,
-    fontWeight: '700',
-    marginBottom: 6,
-    textAlign: 'center',
-  },
-  toggleDotContainer: {
-    width: 40,
-    height: 22,
-    borderRadius: 11,
-    padding: 2,
-    justifyContent: 'center',
-  },
-  toggleActive: {
-    backgroundColor: '#10B981',
-    alignItems: 'flex-end',
-  },
-  toggleInactive: {
-    backgroundColor: '#475569',
-    alignItems: 'flex-start',
-  },
-  toggleDot: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#FFFFFF',
-  },
-  captureBtn: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    borderWidth: 4,
-    borderColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  captureBtnInner: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#4F46E5',
-  },
-  centerContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#0F172A',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#94A3B8',
-  },
-  permissionContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 40,
-  },
-  permissionEmoji: {
-    fontSize: 64,
-    marginBottom: 20,
-  },
-  permissionTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginBottom: 8,
-  },
-  permissionSubtitle: {
-    fontSize: 14,
-    color: '#94A3B8',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 24,
-  },
-  permissionBtn: {
-    backgroundColor: '#4F46E5',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    marginBottom: 12,
-    width: '100%',
-    alignItems: 'center',
-  },
-  permissionBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  bypassBtn: {
-    backgroundColor: '#1E293B',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    width: '100%',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#334155',
-  },
-  bypassBtnText: {
-    color: '#E2E8F0',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  processingOverlay: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(15, 23, 42, 0.85)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 100,
-  },
-  processingCard: {
-    backgroundColor: '#FFFFFF',
-    padding: 24,
-    borderRadius: 20,
-    alignItems: 'center',
-    width: screenWidth * 0.8,
-  },
-  processingTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#1E293B',
-    marginTop: 16,
-  },
-  processingSubtitle: {
-    fontSize: 13,
-    color: '#64748B',
-    marginTop: 6,
-    textAlign: 'center',
-  },
-  progressBarBg: {
-    width: '100%',
-    height: 8,
-    backgroundColor: '#E2E8F0',
-    borderRadius: 4,
-    marginTop: 16,
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: '#10B981',
-  },
-  progressText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#475569',
-    marginTop: 8,
-  },
-});
+  function handleBackToSetup() {
+    if (tempCapturedPath) {
+      setTempCapturedPath(null);
+    } else {
+      setCurrentPhase('setup');
+    }
+  }
+}

@@ -6,13 +6,15 @@ import {
   TouchableOpacity,
   FlatList,
   ActivityIndicator,
-  SafeAreaView,
-  Alert
+  Alert,
+  Platform
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { getScreeningSessions, getPatientById, Patient, ScreeningSession } from '../database/database';
 import { useAppNavigation } from '../navigation/NavigationContext';
+import { ChevronLeft, WifiOff, FileText, ChevronRight, ClipboardList } from 'lucide-react-native';
 
 interface HistoryScreenProps {
   params: { patientId: number };
@@ -127,7 +129,7 @@ export default function HistoryScreen({ params, isActive }: HistoryScreenProps) 
           </head>
           <body>
             <div class="header">
-              <div class="app-logo">Nura App Local AI Visual Scanner</div>
+              <div class="app-logo">GiziKu App Scanner</div>
               <div class="title">LAPORAN HASIL SKRINING GIZI & STUNTING</div>
               <div class="date">Waktu Pemeriksaan: ${formattedDate} WIB | ID Laporan: #NS-${session.id}</div>
             </div>
@@ -136,9 +138,9 @@ export default function HistoryScreen({ params, isActive }: HistoryScreenProps) 
               <tr>
                 <td class="meta-label">Nama Lengkap Pasien</td>
                 <td class="meta-value">: ${patient.nama_pasien}</td>
-                <td class="meta-label" style="text-align: right; width: 160px;">Tingkat Risiko Gizi</td>
+                <td class="meta-label" style="text-align: right; width: 160px;">Status Urgensi Gizi</td>
                 <td class="meta-value" style="text-align: right; width: 120px;">
-                  : <span class="badge" style="background-color: ${riskBg}; color: ${riskColor};">${session.level_risiko}</span>
+                  : <span class="badge" style="background-color: ${riskBg}; color: ${riskColor};">${session.level_risiko === 'tinggi' ? 'Anemia Berat' : session.level_risiko === 'sedang' ? 'Anemia Ringan' : 'Normal'}</span>
                 </td>
               </tr>
               <tr>
@@ -155,21 +157,21 @@ export default function HistoryScreen({ params, isActive }: HistoryScreenProps) 
               </tr>
             </table>
 
-            <div class="section-title">Hasil Analisis Visual AI (On-Device Scanner)</div>
+            <div class="section-title">Hasil Pemeriksaan Visual</div>
             <table class="table">
               <thead>
                 <tr>
-                  <th style="width: 30%;">Kanal Sensoris</th>
-                  <th style="width: 70%;">Hasil Analisis Deteksi AI</th>
+                  <th style="width: 30%;">Bagian Pemindaian</th>
+                  <th style="width: 70%;">Hasil Analisis</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td style="font-weight: bold;">👁️ Konjungtiva Mata</td>
+                  <td style="font-weight: bold;">👁️ Kelopak Mata</td>
                   <td>${session.analisis_mata}</td>
                 </tr>
                 <tr>
-                  <td style="font-weight: bold;">💅 Kuku Jari Tangan</td>
+                  <td style="font-weight: bold;">💅 Kuku Jari</td>
                   <td>${session.analisis_kuku}</td>
                 </tr>
                 <tr>
@@ -179,27 +181,14 @@ export default function HistoryScreen({ params, isActive }: HistoryScreenProps) 
               </tbody>
             </table>
 
-            <div class="section-title">Evaluasi Kuesioner Pendukung</div>
+            <div class="section-title">Hasil Evaluasi Perilaku & Kondisi Umum</div>
             <table style="width: 100%; border-collapse: collapse; margin-top: 5px;">
               ${formattedAnswers}
             </table>
 
-            <div class="section-title">Sintesis Diagnosis & Rekomendasi Nutrisi</div>
+            <div class="section-title">Rekomendasi Nutrisi Lokal</div>
             <div class="recommendation-card">
-              <strong style="font-size: 13px; color: #1e293b; display: block; margin-bottom: 6px;">Ringkasan Kondisi:</strong>
-              <span style="display: block; margin-bottom: 12px;">${session.analisis_gabungan}</span>
-
-              <strong style="font-size: 13px; color: #1e293b; display: block; margin-bottom: 6px;">Rekomendasi Tindakan & Gizi:</strong>
               <span>${session.rekomendasi}</span>
-            </div>
-
-            <div class="disclaimer-card">
-              <div class="disclaimer-title">⚠️ Disclaimer Medis Penting</div>
-              Laporan ini dihasilkan secara otomatis menggunakan model kecerdasan buatan (AI) lokal di dalam aplikasi Nura App. Hasil pemindaian dan saran nutrisi di atas bersifat sebagai langkah skrining awal (early screening) untuk mendeteksi risiko stunting dan anemia. Dokumen ini BUKAN merupakan diagnosis medis formal. Konsultasikan hasil ini dengan dokter anak, bidan, atau petugas Puskesmas setempat untuk pemeriksaan klinis lebih lanjut.
-            </div>
-            
-            <div class="footer-note">
-              Dokumen ini diproses dan ditandatangani secara digital oleh mesin AI Nura App pada perangkat seluler secara offline (tanpa koneksi internet).
             </div>
           </body>
         </html>
@@ -213,32 +202,30 @@ export default function HistoryScreen({ params, isActive }: HistoryScreenProps) 
     }
   };
 
-  const renderSessionItem = ({ item }: { item: ScreeningSession }) => {
-    const risk = item.level_risiko;
-    let badgeBg = '#E2E8F0';
-    let badgeText = '#64748B';
-    
-    if (risk === 'tinggi') {
-      badgeBg = '#FEE2E2';
-      badgeText = '#991B1B';
-    } else if (risk === 'sedang') {
-      badgeBg = '#FEF3C7';
-      badgeText = '#92400E';
-    } else if (risk === 'rendah') {
-      badgeBg = '#DEF7EC';
-      badgeText = '#03543F';
+  const getStatusBadgeConfig = (risk: string) => {
+    switch (risk) {
+      case 'tinggi':
+        return { bg: '#FEE2E2', text: '#E53E3E', label: 'Anemia Berat' };
+      case 'sedang':
+        return { bg: '#FEF9C3', text: '#CA8A04', label: 'Anemia Ringan' };
+      case 'rendah':
+      default:
+        return { bg: '#DCFCE7', text: '#16A34A', label: 'Normal' };
     }
+  };
 
+  const renderSessionItem = ({ item }: { item: ScreeningSession }) => {
+    const status = getStatusBadgeConfig(item.level_risiko);
     return (
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <View>
             <Text style={styles.cardDate}>{formatDate(item.created_at)}</Text>
-            <Text style={styles.cardAge}>Usia skrining: {item.usia_tahun} Thn {item.usia_bulan} Bln</Text>
+            <Text style={styles.cardAge}>Usia Pemeriksaan: {item.usia_tahun} Thn {item.usia_bulan} Bln</Text>
           </View>
-          <View style={[styles.badge, { backgroundColor: badgeBg }]}>
-            <Text style={[styles.badgeText, { color: badgeText }]}>
-              {risk.toUpperCase()}
+          <View style={[styles.badge, { backgroundColor: status.bg }]}>
+            <Text style={[styles.badgeText, { color: status.text }]}>
+              {status.label}
             </Text>
           </View>
         </View>
@@ -254,14 +241,16 @@ export default function HistoryScreen({ params, isActive }: HistoryScreenProps) 
             style={styles.pdfBtn}
             onPress={() => exportPdfReport(item)}
           >
-            <Text style={styles.pdfBtnText}>📄 Cetak PDF</Text>
+            <FileText size={14} color="#1b5be8" strokeWidth={2.5} style={{ marginRight: 6 }} />
+            <Text style={styles.pdfBtnText}>Cetak PDF</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.detailBtn}
             onPress={() => navigate('Results', { sessionId: item.id })}
           >
-            <Text style={styles.detailBtnText}>Lihat Detail →</Text>
+            <Text style={styles.detailBtnText}>Lihat Detail</Text>
+            <ChevronRight size={14} color="#5a6b7e" strokeWidth={2.5} style={{ marginLeft: 4 }} />
           </TouchableOpacity>
         </View>
       </View>
@@ -271,7 +260,7 @@ export default function HistoryScreen({ params, isActive }: HistoryScreenProps) 
   if (loading || !patient) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#4F46E5" />
+        <ActivityIndicator size="large" color="#1b5be8" />
         <Text style={styles.loadingText}>Memuat riwayat...</Text>
       </View>
     );
@@ -279,20 +268,35 @@ export default function HistoryScreen({ params, isActive }: HistoryScreenProps) 
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Simulation Status Bar Area */}
+      <View style={styles.statusBarSim}>
+        <Text style={styles.timeSim}>9:41</Text>
+        <View style={styles.offlineBadge}>
+          <WifiOff size={13} color="#2D6B66" strokeWidth={2.5} />
+          <Text style={styles.offlineText}>Offline</Text>
+        </View>
+      </View>
+
+      {/* Screen Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigate('Home')}>
-          <Text style={styles.backBtnText}>← Dashboard</Text>
+          <ChevronLeft size={22} color="#1A2332" strokeWidth={2.5} />
         </TouchableOpacity>
-        <Text style={styles.title}>Riwayat Skrining</Text>
-        <Text style={styles.subtitle}>Riwayat pemeriksaan untuk: {patient.nama_pasien}</Text>
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.title}>Riwayat Skrining</Text>
+          <Text style={styles.subtitle}>Pasien: {patient.nama_pasien}</Text>
+        </View>
+        <View style={{ width: 44 }} />
       </View>
 
       {sessions.length === 0 ? (
         <View style={styles.centerContainer}>
-          <Text style={styles.emptyEmoji}>📋</Text>
+          <View style={styles.emptyIconBg}>
+            <ClipboardList size={32} color="#8a9ab0" strokeWidth={2} />
+          </View>
           <Text style={styles.emptyTitle}>Belum Ada Riwayat</Text>
           <Text style={styles.emptySubtitle}>
-            Pasien ini belum pernah melakukan pemeriksaan visual AI.
+            Anak ini belum pernah melakukan pemeriksaan.
           </Text>
           <TouchableOpacity
             style={styles.startBtn}
@@ -317,50 +321,78 @@ export default function HistoryScreen({ params, isActive }: HistoryScreenProps) 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#ffffff',
+  },
+  statusBarSim: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 0 : 8,
+    paddingBottom: 4,
+  },
+  timeSim: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1a2332',
+  },
+  offlineBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e8f5f4',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 9999,
+    gap: 4,
+  },
+  offlineText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#2d6b66',
   },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    backgroundColor: '#FFFFFF',
+    height: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
   },
   backBtn: {
-    marginBottom: 8,
-    alignSelf: 'flex-start',
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#f0f4f8',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  backBtnText: {
-    color: '#4F46E5',
-    fontWeight: '600',
-    fontSize: 14,
+  headerTitleContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#1E293B',
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1a2332',
   },
   subtitle: {
-    fontSize: 13,
-    color: '#64748B',
+    fontSize: 12,
+    color: '#5a6b7e',
+    fontWeight: '600',
     marginTop: 2,
   },
   listContent: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 40,
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: 'rgba(26, 35, 50, 0.08)',
     padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.02,
-    shadowRadius: 6,
-    elevation: 2,
+    marginBottom: 14,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -368,102 +400,113 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   cardDate: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
-    color: '#1E293B',
+    color: '#1a2332',
   },
   cardAge: {
     fontSize: 11,
-    color: '#64748B',
-    marginTop: 2,
+    color: '#5a6b7e',
+    fontWeight: '500',
+    marginTop: 3,
   },
   badge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: 9999,
   },
   badgeText: {
-    fontSize: 10,
-    fontWeight: '800',
+    fontSize: 11,
+    fontWeight: '700',
   },
   cardSummary: {
     fontSize: 12,
-    color: '#475569',
-    marginTop: 12,
+    color: '#5a6b7e',
+    marginTop: 10,
     lineHeight: 18,
+    fontWeight: '500',
   },
   divider: {
-    height: 1,
-    backgroundColor: '#F1F5F9',
+    height: 1.5,
+    backgroundColor: 'rgba(26, 35, 50, 0.08)',
     marginVertical: 12,
   },
   cardActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
   },
   pdfBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 8,
     paddingHorizontal: 14,
-    borderRadius: 8,
-    backgroundColor: '#EEF2FF',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: '#e8f0fd',
   },
   pdfBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#4F46E5',
+    color: '#1b5be8',
   },
   detailBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 8,
     paddingHorizontal: 14,
-    borderRadius: 8,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: '#f0f4f8',
   },
   detailBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#475569',
+    color: '#5a6b7e',
   },
   centerContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 40,
+    paddingBottom: 40,
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#64748B',
+    fontSize: 13,
+    color: '#5a6b7e',
+    fontWeight: '500',
+    marginTop: 10,
   },
-  emptyEmoji: {
-    fontSize: 48,
+  emptyIconBg: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: '#f0f4f8',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 16,
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
-    color: '#334155',
+    color: '#1a2332',
   },
   emptySubtitle: {
-    fontSize: 14,
-    color: '#64748B',
+    fontSize: 13,
+    color: '#5a6b7e',
     textAlign: 'center',
-    marginTop: 8,
-    lineHeight: 20,
+    marginTop: 6,
+    lineHeight: 18,
+    fontWeight: '500',
     marginBottom: 20,
   },
   startBtn: {
-    backgroundColor: '#4F46E5',
+    backgroundColor: '#1b5be8',
     paddingVertical: 12,
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     borderRadius: 12,
   },
   startBtnText: {
-    color: '#FFFFFF',
+    color: '#ffffff',
     fontWeight: '700',
-    fontSize: 14,
+    fontSize: 13,
   },
 });

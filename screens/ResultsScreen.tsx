@@ -5,15 +5,27 @@ import {
   View,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   ActivityIndicator,
   Linking,
-  Alert
+  Alert,
+  Platform
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { getScreeningSessionById, getPatientById, Patient, ScreeningSession } from '../database/database';
 import { useAppNavigation } from '../navigation/NavigationContext';
+import {
+  WifiOff,
+  AlertTriangle,
+  CheckCircle,
+  Eye,
+  Hand,
+  Check,
+  MapPin,
+  Share2,
+  RefreshCw
+} from 'lucide-react-native';
 
 interface ResultsScreenProps {
   params: { sessionId: number };
@@ -69,14 +81,18 @@ export default function ResultsScreen({ params, isActive }: ResultsScreenProps) 
     }
   }, [isActive, sessionId]);
 
-  const openReferralMap = async () => {
-    const url = "https://www.google.com/maps/search/Puskesmas+terdekat";
-    const supported = await Linking.canOpenURL(url);
-    if (supported) {
-      await Linking.openURL(url);
-    } else {
-      Alert.alert("Gagal Membuka Peta", "Aplikasi browser atau Google Maps tidak tersedia.");
+  const parsePhysicalData = (recomText: string) => {
+    if (!recomText) return null;
+    const match = recomText.match(/\[FISIK\] BB:\s*([0-9.]+)\s*kg,\s*TB:\s*([0-9.]+)\s*cm,\s*BMI:\s*([0-9.]+),\s*Status:\s*([^.]+)/);
+    if (match) {
+      return {
+        weight: match[1],
+        height: match[2],
+        bmi: match[3],
+        status: match[4]
+      };
     }
+    return null;
   };
 
   const exportPdfReport = async () => {
@@ -130,7 +146,7 @@ export default function ResultsScreen({ params, isActive }: ResultsScreenProps) 
           </head>
           <body>
             <div class="header">
-              <div class="app-logo">Nura App Local AI Visual Scanner</div>
+              <div class="app-logo">GiziKu App Scanner</div>
               <div class="title">LAPORAN HASIL SKRINING GIZI & STUNTING</div>
               <div class="date">Waktu Pemeriksaan: ${formattedDate} WIB | ID Laporan: #NS-${session.id}</div>
             </div>
@@ -139,9 +155,9 @@ export default function ResultsScreen({ params, isActive }: ResultsScreenProps) 
               <tr>
                 <td class="meta-label">Nama Lengkap Pasien</td>
                 <td class="meta-value">: ${patient.nama_pasien}</td>
-                <td class="meta-label" style="text-align: right; width: 160px;">Tingkat Risiko Gizi</td>
+                <td class="meta-label" style="text-align: right; width: 160px;">Status Urgensi Gizi</td>
                 <td class="meta-value" style="text-align: right; width: 120px;">
-                  : <span class="badge" style="background-color: ${riskBg}; color: ${riskColor};">${session.level_risiko}</span>
+                  : <span class="badge" style="background-color: ${riskBg}; color: ${riskColor};">${session.level_risiko === 'tinggi' ? 'Anemia Berat' : session.level_risiko === 'sedang' ? 'Anemia Ringan' : 'Normal'}</span>
                 </td>
               </tr>
               <tr>
@@ -158,21 +174,21 @@ export default function ResultsScreen({ params, isActive }: ResultsScreenProps) 
               </tr>
             </table>
 
-            <div class="section-title">Hasil Analisis Visual AI (On-Device Scanner)</div>
+            <div class="section-title">Hasil Pemeriksaan Visual</div>
             <table class="table">
               <thead>
                 <tr>
-                  <th style="width: 30%;">Kanal Sensoris</th>
-                  <th style="width: 70%;">Hasil Analisis Deteksi AI</th>
+                  <th style="width: 30%;">Bagian Pemindaian</th>
+                  <th style="width: 70%;">Hasil Analisis</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td style="font-weight: bold;">👁️ Konjungtiva Mata</td>
+                  <td style="font-weight: bold;">👁️ Kelopak Mata</td>
                   <td>${session.analisis_mata}</td>
                 </tr>
                 <tr>
-                  <td style="font-weight: bold;">💅 Kuku Jari Tangan</td>
+                  <td style="font-weight: bold;">💅 Kuku Jari</td>
                   <td>${session.analisis_kuku}</td>
                 </tr>
                 <tr>
@@ -182,34 +198,26 @@ export default function ResultsScreen({ params, isActive }: ResultsScreenProps) 
               </tbody>
             </table>
 
-            <div class="section-title">Evaluasi Kuesioner Pendukung</div>
+            <div class="section-title">Hasil Evaluasi Perilaku & Kondisi Umum</div>
             <table style="width: 100%; border-collapse: collapse; margin-top: 5px;">
               ${formattedAnswers}
             </table>
 
-            <div class="section-title">Sintesis Diagnosis & Rekomendasi Nutrisi</div>
+            <div class="section-title">Rekomendasi Nutrisi Lokal</div>
             <div class="recommendation-card">
-              <strong style="font-size: 13px; color: #1e293b; display: block; margin-bottom: 6px;">Ringkasan Kondisi:</strong>
-              <span style="display: block; margin-bottom: 12px;">${session.analisis_gabungan}</span>
-
-              <strong style="font-size: 13px; color: #1e293b; display: block; margin-bottom: 6px;">Rekomendasi Tindakan & Gizi:</strong>
               <span>${session.rekomendasi}</span>
             </div>
 
             <div class="disclaimer-card">
               <div class="disclaimer-title">⚠️ Disclaimer Medis Penting</div>
-              Laporan ini dihasilkan secara otomatis menggunakan model kecerdasan buatan (AI) lokal di dalam aplikasi Nura App. Hasil pemindaian dan saran nutrisi di atas bersifat sebagai langkah skrining awal (early screening) untuk mendeteksi risiko stunting dan anemia. Dokumen ini BUKAN merupakan diagnosis medis formal. Konsultasikan hasil ini dengan dokter anak, bidan, atau petugas Puskesmas setempat untuk pemeriksaan klinis lebih lanjut.
-            </div>
-            
-            <div class="footer-note">
-              Dokumen ini diproses dan ditandatangani secara digital oleh mesin AI Nura App pada perangkat seluler secara offline (tanpa koneksi internet).
+              Laporan ini dihasilkan secara otomatis oleh aplikasi GiziKu. Hasil pemeriksaan di atas bersifat sebagai langkah skrining awal untuk mendeteksi risiko stunting dan anemia. Dokumen ini BUKAN merupakan diagnosis medis formal. Konsultasikan hasil ini dengan dokter anak, bidan, atau petugas Puskesmas setempat untuk pemeriksaan klinis lebih lanjut.
             </div>
           </body>
         </html>
       `;
 
       const { uri } = await Print.printToFileAsync({ html: htmlContent });
-      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Bagikan Laporan Kesehatan Nura' });
+      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Bagikan Laporan Kesehatan GiziKu' });
     } catch (e: any) {
       console.error(e);
       Alert.alert("Gagal PDF", "Gagal memproses dokumen PDF: " + e.message);
@@ -219,148 +227,204 @@ export default function ResultsScreen({ params, isActive }: ResultsScreenProps) 
   if (loading || !session || !patient) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#4F46E5" />
+        <ActivityIndicator size="large" color="#1b5be8" />
         <Text style={styles.loadingText}>Membuat ringkasan diagnosis...</Text>
       </View>
     );
   }
 
-  // Set card colors depending on risk
+  // Parse physical dimensions (weight, height, BMI)
+  const physicalData = parsePhysicalData(session.rekomendasi);
+
+  // Set alert banner properties based on risk
   const isHigh = session.level_risiko === 'tinggi';
   const isMed = session.level_risiko === 'sedang';
 
-  const riskColor = isHigh ? '#EF4444' : isMed ? '#F59E0B' : '#10B981';
-  const riskBg = isHigh ? '#FEE2E2' : isMed ? '#FEF3C7' : '#DEF7EC';
-  const textContrast = isHigh ? '#7F1D1D' : isMed ? '#78350F' : '#046C4E';
+  let bannerTitle = 'Kondisi Normal Terpantau';
+  let bannerBg = '#dcfce7'; // green
+  let bannerBorder = '#86efac';
+  let bannerColor = '#16a34a';
+  let bannerIcon = CheckCircle;
 
-  const anomalyCount = answers.filter(a => a.score === 1).length;
+  if (isHigh) {
+    bannerTitle = 'Tindakan Diperlukan: Tanda Anemia Berat Terdeteksi';
+    bannerBg = '#fee2e2'; // red
+    bannerBorder = '#fca5a5';
+    bannerColor = '#e53e3e';
+    bannerIcon = AlertTriangle;
+  } else if (isMed) {
+    bannerTitle = 'Tindakan Diperlukan: Tanda Anemia Ringan Terdeteksi';
+    bannerBg = '#fffbeb'; // amber
+    bannerBorder = '#fde68a';
+    bannerColor = '#ca8a04';
+    bannerIcon = AlertTriangle;
+  }
+
+  const BannerIconComponent = bannerIcon;
+  const ageMonthsTotal = (session.usia_tahun * 12) + session.usia_bulan;
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Simulation Status Bar Area */}
+      <View style={styles.statusBarSim}>
+        <Text style={styles.timeSim}>9:41</Text>
+        <View style={styles.offlineBadge}>
+          <WifiOff size={13} color="#2D6B66" strokeWidth={2.5} />
+          <Text style={styles.offlineText}>Offline</Text>
+        </View>
+      </View>
+
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.headerTitleContainer}>
-          <Text style={styles.title}>Hasil Skrining</Text>
-          <Text style={styles.dateText}>
-            Dibuat pada: {new Date(session.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
-          </Text>
+        {/* Risk Banner Header */}
+        <View style={[styles.banner, { backgroundColor: bannerBg, borderColor: bannerBorder }]}>
+          <View style={styles.bannerHeader}>
+            <View style={styles.bannerIconWrapper}>
+              <BannerIconComponent size={22} color={bannerColor} strokeWidth={2.5} />
+            </View>
+            <View style={styles.bannerTextCol}>
+              <Text style={[styles.bannerTitle, { color: bannerColor }]}>
+                {bannerTitle}
+              </Text>
+              <Text style={styles.bannerSubtitle}>
+                {patient.nama_pasien} • {ageMonthsTotal} bulan
+              </Text>
+            </View>
+          </View>
         </View>
 
-        <View style={styles.main}>
-          {/* Risk Level Badge Card */}
-          <View style={[styles.riskCard, { backgroundColor: riskBg, borderColor: riskColor }]}>
-            <Text style={[styles.riskBadgeLabel, { color: riskColor }]}>
-              RISIKO {session.level_risiko.toUpperCase()}
-            </Text>
-            <Text style={[styles.riskSummary, { color: textContrast }]}>
-              {session.analisis_gabungan}
-            </Text>
-          </View>
-
-          {/* Patient summary */}
-          <View style={styles.patientBox}>
-            <Text style={styles.patientBoxTitle}>Profil Pasien</Text>
-            <View style={styles.patientBoxRow}>
-              <Text style={styles.patientBoxLabel}>Nama Lengkap</Text>
-              <Text style={styles.patientBoxValue}>{patient.nama_pasien}</Text>
-            </View>
-            <View style={styles.patientBoxRow}>
-              <Text style={styles.patientBoxLabel}>Jenis Kelamin</Text>
-              <Text style={styles.patientBoxValue}>{patient.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan'}</Text>
-            </View>
-            <View style={styles.patientBoxRow}>
-              <Text style={styles.patientBoxLabel}>Usia Pemeriksaan</Text>
-              <Text style={styles.patientBoxValue}>{session.usia_tahun} Tahun {session.usia_bulan} Bulan</Text>
+        {/* Measurements box (Weight, Height, BMI) if available */}
+        {physicalData && (
+          <View style={styles.measurementsCard}>
+            <Text style={styles.sectionHeadingUpper}>Kondisi Fisik & Stunting</Text>
+            <View style={styles.measGrid}>
+              <View style={styles.measItem}>
+                <Text style={styles.measLabel}>Berat Badan</Text>
+                <Text style={styles.measValue}>{physicalData.weight} kg</Text>
+              </View>
+              <View style={styles.measItem}>
+                <Text style={styles.measLabel}>Tinggi Badan</Text>
+                <Text style={styles.measValue}>{physicalData.height} cm</Text>
+              </View>
+              <View style={styles.measItem}>
+                <Text style={styles.measLabel}>Status WHO</Text>
+                <Text style={[
+                  styles.measValue, 
+                  { color: physicalData.status.includes('Normal') ? '#16a34a' : '#ca8a04' }
+                ]}>
+                  {physicalData.status}
+                </Text>
+              </View>
             </View>
           </View>
+        )}
 
-          {/* AI Scanner Breakdown */}
-          <Text style={styles.sectionHeader}>Hasil Pemindaian AI & Sensor</Text>
-
+        <View style={styles.mainContent}>
+          {/* AI DIAGNOSTICS */}
+          <Text style={styles.sectionHeadingUpper}>Analisis Visual</Text>
+          
           <View style={styles.indicatorCard}>
+            {/* Eye row */}
             <View style={styles.indicatorRow}>
-              <Text style={styles.indicatorEmoji}>👁️</Text>
-              <View style={styles.indicatorDetails}>
-                <Text style={styles.indicatorTitle}>Sensori Konjungtiva Mata</Text>
-                <Text style={styles.indicatorValue}>{session.analisis_mata}</Text>
+              <View style={[styles.indicatorIconBg, { backgroundColor: '#fff7ed' }]}>
+                <Eye size={20} color="#ea580c" strokeWidth={2.5} />
               </View>
-            </View>
-
-            <View style={styles.indicatorDivider} />
-
-            <View style={styles.indicatorRow}>
-              <Text style={styles.indicatorEmoji}>💅</Text>
-              <View style={styles.indicatorDetails}>
-                <Text style={styles.indicatorTitle}>Sensori Kuku Jari</Text>
-                <Text style={styles.indicatorValue}>{session.analisis_kuku}</Text>
-              </View>
-            </View>
-
-            <View style={styles.indicatorDivider} />
-
-            <View style={styles.indicatorRow}>
-              <Text style={styles.indicatorEmoji}>👤</Text>
-              <View style={styles.indicatorDetails}>
-                <Text style={styles.indicatorTitle}>Sensori Wajah & Kulit</Text>
-                <Text style={styles.indicatorValue}>{session.analisis_muka}</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Questionnaire count */}
-          <View style={styles.questionnaireSummaryCard}>
-            <View style={styles.questionnaireRow}>
-              <View style={styles.questionnaireTexts}>
-                <Text style={styles.questionnaireTitle}>Kuesioner Observasi</Text>
-                <Text style={styles.questionnaireSub}>
-                  {anomalyCount > 0 ? `${anomalyCount} indikasi anomali perilaku terdeteksi` : "Tidak ada indikasi anomali perilaku"}
-                </Text>
-              </View>
-              <View style={[styles.qScoreBadge, { backgroundColor: anomalyCount > 0 ? '#FEE2E2' : '#DEF7EC' }]}>
-                <Text style={[styles.qScoreBadgeText, { color: anomalyCount > 0 ? '#EF4444' : '#10B981' }]}>
-                  {anomalyCount}
+              <View style={styles.indicatorTexts}>
+                <Text style={styles.indicatorTitle}>DIAGNOSTIK KELOPAK MATA</Text>
+                <Text style={styles.indicatorDesc}>
+                  Konjungtiva: {session.analisis_mata}
                 </Text>
               </View>
             </View>
-            
-            {anomalyCount > 0 && (
-              <View style={styles.flaggedQuestionsContainer}>
-                <Text style={styles.flaggedTitle}>Indikator Terflagged:</Text>
-                {answers.filter(a => a.score === 1).map((ans, index) => (
-                  <Text key={index} style={styles.flaggedQuestionText}>
-                    • {ans.question}
-                  </Text>
-                ))}
+
+            <View style={styles.cardDivider} />
+
+            {/* Nails row */}
+            <View style={styles.indicatorRow}>
+              <View style={[styles.indicatorIconBg, { backgroundColor: '#f0fdf4' }]}>
+                <Hand size={20} color="#16a34a" strokeWidth={2.5} />
               </View>
-            )}
+              <View style={styles.indicatorTexts}>
+                <Text style={styles.indicatorTitle}>DIAGNOSTIK BANTALAN KUKU</Text>
+                <Text style={styles.indicatorDesc}>
+                  Warna Kuku: {session.analisis_kuku}
+                </Text>
+              </View>
+            </View>
           </View>
 
-          {/* Diet Recommendations */}
-          <Text style={styles.sectionHeader}>Rekomendasi Tindakan & Gizi</Text>
-          <View style={styles.recommendationCard}>
-            <Text style={styles.recommendationText}>{session.rekomendasi}</Text>
+          {/* LOCAL NUTRITION RECOMMENDATIONS */}
+          <Text style={styles.sectionHeadingUpper}>Rekomendasi Nutrisi Lokal</Text>
+
+          <View style={styles.recomGrid}>
+            {/* Daun Kelor Card */}
+            <View style={styles.recomCard}>
+              <View style={[styles.recomIconBg, { backgroundColor: '#f0fdf4' }]}>
+                <Text style={styles.recomEmoji}>🌿</Text>
+              </View>
+              <View style={styles.recomTexts}>
+                <Text style={styles.recomTitle}>Daun Kelor (Moringa)</Text>
+                <Text style={styles.recomDesc}>Kaya Vitamin A & Zat Besi</Text>
+              </View>
+            </View>
+
+            {/* Telur Rebus Card */}
+            <View style={styles.recomCard}>
+              <View style={[styles.recomIconBg, { backgroundColor: '#fffdf5' }]}>
+                <Text style={styles.recomEmoji}>🥚</Text>
+              </View>
+              <View style={styles.recomTexts}>
+                <Text style={styles.recomTitle}>Telur Rebus</Text>
+                <Text style={styles.recomDesc}>Sumber protein utama tumbuh kembang</Text>
+              </View>
+            </View>
+
+            {/* Ikan Kembung Card */}
+            <View style={styles.recomCard}>
+              <View style={[styles.recomIconBg, { backgroundColor: '#eff6ff' }]}>
+                <Text style={styles.recomEmoji}>🐟</Text>
+              </View>
+              <View style={styles.recomTexts}>
+                <Text style={styles.recomTitle}>Ikan Kembung (Mackerel)</Text>
+                <Text style={styles.recomDesc}>Omega-3 terjangkau sumber lokal</Text>
+              </View>
+            </View>
           </View>
 
-          {/* Action Buttons */}
+          {/* ACTION BUTTONS */}
           <View style={styles.actionBtnsContainer}>
-            {/* Share PDF Report */}
-            <TouchableOpacity style={styles.pdfBtn} onPress={exportPdfReport}>
-              <Text style={styles.pdfBtnText}>📄 Bagikan Laporan Resmi (PDF)</Text>
+            {/* Find clinic nearest */}
+            <TouchableOpacity style={styles.clinicBtn} onPress={() => navigate('Faskes')}>
+              <MapPin size={18} color="#ffffff" strokeWidth={2.5} style={{ marginRight: 8 }} />
+              <Text style={styles.clinicBtnText}>Temukan Klinik Terdekat</Text>
             </TouchableOpacity>
 
-            {/* Faskes Terdekat Map */}
-            {(isHigh || isMed) && (
-              <TouchableOpacity style={styles.mapBtn} onPress={openReferralMap}>
-                <Text style={styles.mapBtnText}>🏥 Temukan Puskesmas Terdekat</Text>
-              </TouchableOpacity>
-            )}
+            {/* Print/Share PDF */}
+            <TouchableOpacity style={styles.pdfBtn} onPress={exportPdfReport}>
+              <Share2 size={18} color="#ffffff" strokeWidth={2.5} style={{ marginRight: 8 }} />
+              <Text style={styles.pdfBtnText}>Unduh & Bagikan PDF</Text>
+            </TouchableOpacity>
 
-            {/* Back Home */}
-            <TouchableOpacity style={styles.homeBtn} onPress={() => navigate('Home')}>
-              <Text style={styles.homeBtnText}>Kembali ke Beranda</Text>
+            {/* Redo Check */}
+            <TouchableOpacity style={styles.redoBtn} onPress={() => navigate('Home')}>
+              <RefreshCw size={16} color="#5a6b7e" strokeWidth={2.5} style={{ marginRight: 8 }} />
+              <Text style={styles.redoBtnText}>Pemeriksaan Baru</Text>
             </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
+
+      {/* Bottom Nav Dots Simulator */}
+      <View style={styles.navDotsContainer}>
+        {[...Array(9)].map((_, i) => (
+          <View
+            key={i}
+            style={[
+              styles.navDot,
+              i === 6 ? styles.navDotActive : styles.navDotInactive
+            ]}
+          />
+        ))}
+      </View>
     </SafeAreaView>
   );
 }
@@ -368,252 +432,267 @@ export default function ResultsScreen({ params, isActive }: ResultsScreenProps) 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#ffffff',
   },
-  scrollContent: {
-    paddingBottom: 40,
-  },
-  headerTitleContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#1E293B',
-    letterSpacing: -0.5,
-  },
-  dateText: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  main: {
-    paddingHorizontal: 20,
-    marginTop: 12,
-  },
-  riskCard: {
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1.5,
-    marginBottom: 20,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  riskBadgeLabel: {
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 1.2,
-    marginBottom: 8,
-  },
-  riskSummary: {
-    fontSize: 14,
-    fontWeight: '600',
-    lineHeight: 20,
-  },
-  patientBox: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 20,
-  },
-  patientBoxTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#334155',
-    marginBottom: 12,
-  },
-  patientBoxRow: {
+  statusBarSim: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 0 : 8,
+    paddingBottom: 4,
   },
-  patientBoxLabel: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
+  timeSim: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1a2332',
   },
-  patientBoxValue: {
-    fontSize: 12,
-    color: '#1E293B',
+  offlineBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e8f5f4',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 9999,
+    gap: 4,
+  },
+  offlineText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#2d6b66',
+  },
+  scrollContent: {
+    paddingBottom: 80,
+  },
+  banner: {
+    marginHorizontal: 20,
+    marginTop: 16,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    padding: 16,
+  },
+  bannerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  bannerIconWrapper: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bannerTextCol: {
+    flex: 1,
+  },
+  bannerTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 18,
+  },
+  bannerSubtitle: {
+    fontSize: 11,
+    color: '#5a6b7e',
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  measurementsCard: {
+    marginHorizontal: 20,
+    marginTop: 18,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(26, 35, 50, 0.08)',
+    padding: 16,
+  },
+  measGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  measItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  measLabel: {
+    fontSize: 11,
+    color: '#8a9ab0',
     fontWeight: '700',
   },
-  sectionHeader: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#475569',
-    marginBottom: 12,
+  measValue: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1a2332',
+    marginTop: 4,
+  },
+  mainContent: {
+    paddingHorizontal: 20,
+    marginTop: 18,
+  },
+  sectionHeadingUpper: {
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+    fontWeight: '800',
+    color: '#8a9ab0',
+    marginBottom: 10,
     marginTop: 8,
   },
   indicatorCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: 'rgba(26, 35, 50, 0.08)',
     padding: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   indicatorRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 4,
+    gap: 12,
   },
-  indicatorEmoji: {
-    fontSize: 28,
-    marginRight: 14,
+  indicatorIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  indicatorDetails: {
+  indicatorTexts: {
     flex: 1,
   },
   indicatorTitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    color: '#8a9ab0',
+  },
+  indicatorDesc: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#334155',
-  },
-  indicatorValue: {
-    fontSize: 12,
-    color: '#64748B',
+    color: '#1a2332',
     marginTop: 2,
   },
-  indicatorDivider: {
-    height: 1,
-    backgroundColor: '#F1F5F9',
+  cardDivider: {
+    height: 1.5,
+    backgroundColor: 'rgba(26, 35, 50, 0.08)',
     marginVertical: 12,
   },
-  questionnaireSummaryCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 16,
-  },
-  questionnaireRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  questionnaireTexts: {
-    flex: 1,
-  },
-  questionnaireTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#334155',
-  },
-  questionnaireSub: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  qScoreBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  qScoreBadgeText: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  flaggedQuestionsContainer: {
-    marginTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    paddingTop: 10,
-  },
-  flaggedTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#94A3B8',
-    marginBottom: 6,
-    textTransform: 'uppercase',
-  },
-  flaggedQuestionText: {
-    fontSize: 12,
-    color: '#475569',
-    lineHeight: 18,
-    marginBottom: 4,
-  },
-  recommendationCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+  recomGrid: {
+    gap: 10,
     marginBottom: 24,
   },
-  recommendationText: {
+  recomCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(26, 35, 50, 0.08)',
+    padding: 12,
+    gap: 12,
+  },
+  recomIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recomEmoji: {
+    fontSize: 18,
+  },
+  recomTexts: {
+    flex: 1,
+  },
+  recomTitle: {
     fontSize: 13,
-    color: '#334155',
-    lineHeight: 20,
+    fontWeight: '700',
+    color: '#1a2332',
+  },
+  recomDesc: {
+    fontSize: 11,
+    color: '#5a6b7e',
+    fontWeight: '500',
+    marginTop: 1,
   },
   actionBtnsContainer: {
-    marginTop: 8,
+    gap: 12,
+  },
+  clinicBtn: {
+    backgroundColor: '#00a49a',
+    height: 52,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clinicBtnText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '700',
   },
   pdfBtn: {
-    backgroundColor: '#4F46E5',
-    paddingVertical: 14,
-    borderRadius: 12,
+    backgroundColor: '#1b5be8',
+    height: 52,
+    borderRadius: 16,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
-    shadowColor: '#4F46E5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 3,
   },
   pdfBtnText: {
-    color: '#FFFFFF',
+    color: '#ffffff',
     fontSize: 15,
     fontWeight: '700',
   },
-  mapBtn: {
-    backgroundColor: '#EF4444',
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-    shadowColor: '#EF4444',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  mapBtnText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  homeBtn: {
-    backgroundColor: '#F1F5F9',
-    paddingVertical: 14,
-    borderRadius: 12,
+  redoBtn: {
+    backgroundColor: '#f0f4f8',
+    height: 48,
+    borderRadius: 16,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  homeBtnText: {
-    color: '#475569',
-    fontSize: 15,
+  redoBtnText: {
+    color: '#5a6b7e',
+    fontSize: 14,
     fontWeight: '700',
   },
   centerContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 80,
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#64748B',
+    fontSize: 13,
+    color: '#5a6b7e',
+    fontWeight: '500',
+    marginTop: 10,
+  },
+  navDotsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'absolute',
+    bottom: 24,
+    left: 0,
+    right: 0,
+    gap: 6,
+  },
+  navDot: {
+    height: 6,
+  },
+  navDotActive: {
+    width: 18,
+    borderRadius: 9999,
+    backgroundColor: '#1b5be8',
+  },
+  navDotInactive: {
+    width: 6,
+    borderRadius: 9999,
+    backgroundColor: '#cbd5e0',
   },
 });
