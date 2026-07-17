@@ -721,6 +721,7 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
             <Text style={styles.processingSubtitle}>{processingText}</Text>
           </View>
         </View>
+      )}
       {/* Downloading Model Loader Overlay */}
       {downloadingModel && (
         <View style={styles.processingOverlay}>
