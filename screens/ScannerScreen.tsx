@@ -314,13 +314,15 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
       let compressedUri = photoUri;
       if (photoUri && photoUri !== "simulated_capture.jpg") {
         try {
+          const saveFormat = (ImageManipulator.SaveFormat as any).WEBP || ImageManipulator.SaveFormat.JPEG;
+          console.log("[Scanner] Compressing image with format:", saveFormat);
           const manipResult = await ImageManipulator.manipulateAsync(
             photoUri,
-            [{ resize: { width: 500 } }],
-            { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+            [{ resize: { width: 600 } }],
+            { compress: 0.6, format: saveFormat }
           );
           compressedUri = manipResult.uri;
-          console.log("[Scanner] Compressed image successfully:", compressedUri);
+          console.log("[Scanner] Compressed image successfully to:", compressedUri);
         } catch (manipError) {
           console.warn("[Scanner] Image manipulation failed, falling back to raw photo:", manipError);
         }

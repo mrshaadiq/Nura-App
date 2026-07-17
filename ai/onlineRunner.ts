@@ -1,12 +1,12 @@
 import * as FileSystem from 'expo-file-system/legacy';
 
 import { GEMINI_API_KEY, GROQ_API_KEY } from './env';
-const GEMINI_MODEL = 'gemini-3.5-flash';
+const GEMINI_MODEL = 'gemini-2.0-flash';
 const GROQ_MODEL = 'llama-3.3-70b-versatile';
-const GROQ_VISION_MODEL = 'llama-3.2-11b-vision-preview';
+const GROQ_VISION_MODEL = 'llama-3.2-90b-vision-preview';
 
 async function fetchGemini(base64Image: string, prompt: string): Promise<string> {
-  const models = [GEMINI_MODEL, 'gemini-2.5-flash', 'gemini-1.5-flash'];
+  const models = ['gemini-2.0-flash', 'gemini-1.5-flash'];
   let lastError = '';
 
   for (const model of models) {
