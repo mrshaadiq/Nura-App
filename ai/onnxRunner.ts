@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import { Asset } from 'expo-asset';
 import { MODEL_LOCAL_URI } from './modelDownloader';
 import { getAiMode, setAiMode } from './aiSettings';

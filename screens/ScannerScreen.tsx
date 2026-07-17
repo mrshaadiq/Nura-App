@@ -21,7 +21,7 @@ import { isModelDownloaded, createModelDownloadResumable, MODEL_LOCAL_URI } from
 import { getAiMode, setAiMode, AiMode } from '../ai/aiSettings';
 import { generateIntegratedDiagnosisOnline } from '../ai/onlineRunner';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const overlaySize = screenWidth * 0.75;
