@@ -151,6 +151,9 @@ export async function analyzeEyes(
     try {
       return await analyzeImageOnline(imageUri, 'eyes');
     } catch (e: any) {
+      if (e.message.includes("BUKAN_")) {
+        throw e;
+      }
       console.warn("[onnxRunner] Online eyes analysis failed, falling back to smart analysis:", e.message);
       await delay(800);
       return getSmartFallbackAnalysis('eyes', questionnaireScore, usiaTahun);
@@ -189,6 +192,9 @@ export async function analyzeNails(
     try {
       return await analyzeImageOnline(imageUri, 'nails');
     } catch (e: any) {
+      if (e.message.includes("BUKAN_")) {
+        throw e;
+      }
       console.warn("[onnxRunner] Online nails analysis failed, falling back to smart analysis:", e.message);
       await delay(800);
       return getSmartFallbackAnalysis('nails', questionnaireScore, usiaTahun);
@@ -226,6 +232,9 @@ export async function analyzeFace(
     try {
       return await analyzeImageOnline(imageUri, 'face');
     } catch (e: any) {
+      if (e.message.includes("BUKAN_")) {
+        throw e;
+      }
       console.warn("[onnxRunner] Online face analysis failed, falling back to smart analysis:", e.message);
       await delay(800);
       return getSmartFallbackAnalysis('face', questionnaireScore, usiaTahun);
