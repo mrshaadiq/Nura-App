@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 // Define the model file name and local path
 export const MODEL_FILE_NAME = 'mobilenetv2-12.onnx';

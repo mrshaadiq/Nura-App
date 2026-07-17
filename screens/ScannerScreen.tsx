@@ -21,7 +21,7 @@ import { isModelDownloaded, createModelDownloadResumable, MODEL_LOCAL_URI } from
 import { getAiMode, setAiMode, AiMode } from '../ai/aiSettings';
 import { generateIntegratedDiagnosisOnline } from '../ai/onlineRunner';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const overlaySize = screenWidth * 0.75;
@@ -168,6 +168,12 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
       setProcessing(true);
       setProcessingText("Menyalin berkas model ke penyimpanan lokal...");
 
+      // Ensure target directory exists
+      const dirInfo = await FileSystem.getInfoAsync(FileSystem.documentDirectory);
+      if (!dirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(FileSystem.documentDirectory, { intermediates: true });
+      }
+
       // Copy the picked file to MODEL_LOCAL_URI
       await FileSystem.copyAsync({
         from: pickedUri,
@@ -258,6 +264,12 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
       setDownloadProgress(0);
       setDownloadBytesWritten(0);
       setDownloadBytesTotal(0);
+
+      // Ensure target directory exists
+      const dirInfo = await FileSystem.getInfoAsync(FileSystem.documentDirectory);
+      if (!dirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(FileSystem.documentDirectory, { intermediates: true });
+      }
 
       const downloadTask = createModelDownloadResumable((progress, written, total) => {
         setDownloadProgress(progress);

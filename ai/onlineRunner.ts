@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 import { GEMINI_API_KEY, GROQ_API_KEY } from './env';
 const GEMINI_MODEL = 'gemini-2.0-flash';
