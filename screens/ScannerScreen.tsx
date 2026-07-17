@@ -168,6 +168,9 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
       setProcessing(true);
       setProcessingText("Menyalin berkas model ke penyimpanan lokal...");
 
+      if (!FileSystem.documentDirectory) {
+        throw new Error("Penyimpanan lokal tidak tersedia.");
+      }
       // Ensure target directory exists
       const dirInfo = await FileSystem.getInfoAsync(FileSystem.documentDirectory);
       if (!dirInfo.exists) {
@@ -265,6 +268,9 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
       setDownloadBytesWritten(0);
       setDownloadBytesTotal(0);
 
+      if (!FileSystem.documentDirectory) {
+        throw new Error("Penyimpanan lokal tidak tersedia.");
+      }
       // Ensure target directory exists
       const dirInfo = await FileSystem.getInfoAsync(FileSystem.documentDirectory);
       if (!dirInfo.exists) {
@@ -580,12 +586,22 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
           );
         }
       } else {
-        recommendations.push(
-          "✅ **KONDISI SEHAT & NORMAL:** Pertahankan pola asuh dan pola makan yang berjalan saat ini.",
-          "✨ **Saran Pemeliharaan Tumbuh Kembang:**",
-          "- Berikan makanan bergizi 3 kali sehari ditambah camilan sehat (buah-buahan, olahan kacang hijau).",
-          "- Jadwalkan pemindaian ulang Nura App rutin setiap 3 bulan sekali untuk pencegahan stunting dini."
-        );
+        if (questionnaireScore > 0) {
+          recommendations.push(
+            "⚠️ **EVALUASI GEJALA RINGAN:** Kuesioner mencatat adanya keluhan perilaku/gejala gizi (Skor: " + questionnaireScore + "/4). Meskipun pemeriksaan fisik visual mata, kuku, dan wajah terdeteksi normal, keluhan gejala tubuh tidak boleh diabaikan begitu saja.",
+            "💡 **Saran Tindakan Mandiri & Pemulihan:**",
+            "- **Istirahat Cukup:** Jika anak mengeluh lemas, mengantuk, atau kurang tidur, pastikan waktu tidur malamnya tercukupi (minimal 8-10 jam tergantung usia) dan batasi aktivitas fisik berlebih untuk sementara.",
+            "- **Hidrasi & Nutrisi Pemulihan:** Berikan air minum hangat yang cukup dan makanan yang mudah dicerna namun padat gizi (sup ayam, telur rebus, buah segar).",
+            "- **Evaluasi Lanjutan:** Pantau kondisi anak selama 2-3 hari ke depan. Apabila rasa lemas/kelelahan berlanjut atau disertai demam, segera konsultasikan ke dokter atau Puskesmas terdekat."
+          );
+        } else {
+          recommendations.push(
+            "✅ **KONDISI SEHAT & NORMAL:** Pertahankan pola asuh dan pola makan yang berjalan saat ini.",
+            "✨ **Saran Pemeliharaan Tumbuh Kembang:**",
+            "- Berikan makanan bergizi 3 kali sehari ditambah camilan sehat (buah-buahan, olahan kacang hijau).",
+            "- Jadwalkan pemindaian ulang Nura App rutin setiap 3 bulan sekali untuk pencegahan stunting dini."
+          );
+        }
       }
 
       recommendationParts.push(...recommendations);

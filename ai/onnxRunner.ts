@@ -93,7 +93,7 @@ async function runLocalONNXInference(imageUri: string | null): Promise<number> {
   const output = results.logits || results.output || Object.values(results)[0];
   const data = output.data;
   
-  const dataArray = Array.from(data as any);
+  const dataArray = Array.from(data as any) as number[];
   const maxIdx = dataArray.indexOf(Math.max(...dataArray));
   console.log(`[onnxRunner] Inference result maxIdx: ${maxIdx}`);
   return maxIdx;

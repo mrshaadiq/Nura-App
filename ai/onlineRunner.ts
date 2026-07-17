@@ -1,12 +1,12 @@
 import * as FileSystem from 'expo-file-system/legacy';
 
-import { GEMINI_API_KEY, GROQ_API_KEY } from './env';
+import { GEMINI_API_KEY, GROQ_API_KEY, DEEPSEEK_API_KEY } from './env';
 const GEMINI_MODEL = 'gemini-2.0-flash';
 const GROQ_MODEL = 'llama-3.3-70b-versatile';
 const GROQ_VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
 
 async function fetchGemini(base64Image: string, prompt: string): Promise<string> {
-  const models = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+  const models = ['gemini-1.5-pro', 'gemini-2.0-flash', 'gemini-1.5-flash'];
   let lastError = '';
 
   for (const model of models) {
@@ -113,11 +113,35 @@ export async function analyzeImageOnline(imageUri: string | null, type: 'eyes' |
 
     let prompt = '';
     if (type === 'eyes') {
-      prompt = 'Analyze this photo. FIRST, verify if this image contains a human eye (specifically the lower eyelid conjunctiva or eye area). If this is NOT a human eye (e.g. it is a table, floor, chair, phone, wall, or empty space), you MUST respond EXACTLY with the text: "BUKAN_MATA". Otherwise, if it is a valid human eye, analyze if it looks pale/yellowish (indicating potential anemia/deficiency) or normal healthy pink. Respond with a concise 1-sentence verdict in Indonesian starting with "Mata (Konjungtiva): "';
+      prompt = `You are an expert pediatric ophthalmologist and clinical nutritionist. Analyze this photo with extreme precision. 
+FIRST, verify if this image contains a human eye. If it is NOT a human eye (e.g. it is a table, floor, chair, phone, wall, or empty space), you MUST respond EXACTLY with the text: "BUKAN_MATA". 
+
+Otherwise, if it is a valid human eye, perform a detailed clinical analysis on the following features:
+1. Conjunctiva: Check if it is normal healthy pink, or pale/white (indicating anemia/iron deficiency).
+2. Sclera: Check if it is clear white, yellow (indicating jaundice/liver/biliary issues), or bloodshot/red (indicating irritation/allergy/fatigue).
+3. Eyelids and Under-eye area: Check for signs of exhaustion/lack of sleep, such as dark circles (lingkaran hitam), eye bags (kantung mata), or droopy/swollen eyelids.
+4. Redness/Irritation: Specifically look for redness (mata merah) or signs of infection/allergy.
+
+Provide your final analysis in a detailed, clear 2-sentence clinical verdict in Indonesian, starting exactly with "Mata (Konjungtiva): ". Be highly specific about what you observe (e.g., "Mata (Konjungtiva): Terdeteksi kemerahan pada sklera dan adanya kantung mata serta lingkaran hitam yang menandakan mata lelah akibat kurang tidur, namun kondisi konjungtiva kelopak mata bawah berwarna merah muda normal.").`;
     } else if (type === 'nails') {
-      prompt = 'Analyze this photo. FIRST, verify if this image contains a human finger nail. If this is NOT a human nail (e.g. it is a table, floor, chair, phone, wall, or empty space), you MUST respond EXACTLY with the text: "BUKAN_KUKU". Otherwise, if it is a valid human nail, analyze if it looks spoon-shaped/koilonychia, pale, or normal pink. Respond with a concise 1-sentence verdict in Indonesian starting with "Kuku: "';
+      prompt = `You are an expert pediatric dermatologist and clinical nutritionist. Analyze this photo with extreme precision.
+FIRST, verify if this image contains a human finger nail. If it is NOT a human nail (e.g. it is a table, floor, chair, phone, wall, or empty space), you MUST respond EXACTLY with the text: "BUKAN_KUKU".
+
+Otherwise, if it is a valid human nail, perform a detailed clinical analysis on the following features:
+1. Color: Check if it is healthy pink, pale/white (indicating anemia), or bluish (indicating poor oxygenation).
+2. Shape/Texture: Check for spoon-shaped curvature (koilonychia, indicating chronic iron deficiency), ridges, splitting, or clubbing.
+
+Provide your final analysis in a detailed, clear 2-sentence clinical verdict in Indonesian, starting exactly with "Kuku: ". Be highly specific about what you observe.`;
     } else {
-      prompt = 'Analyze this photo. FIRST, verify if this image contains a human face. If this is NOT a human face (e.g. it is a table, floor, chair, phone, wall, or empty space), you MUST respond EXACTLY with the text: "BUKAN_WAJAH". Otherwise, if it is a valid human face, analyze if it shows signs of wasting, severe thinness, or normal. Respond with a concise 1-sentence verdict in Indonesian starting with "Wajah: "';
+      prompt = `You are an expert pediatrician and clinical nutritionist. Analyze this photo with extreme precision.
+FIRST, verify if this image contains a human face. If it is NOT a human face (e.g. it is a table, floor, chair, phone, wall, or empty space), you MUST respond EXACTLY with the text: "BUKAN_WAJAH".
+
+Otherwise, if it is a valid human face, perform a detailed clinical analysis on the following features:
+1. Nutritional state: Check for signs of wasting, severe thinness (kehilangan lemak subkutan di pipi, pipi kempot), or normal healthy fullness.
+2. Swelling/Edema: Check for puffiness, swelling (edema/moon-face, indicating kwashiorkor/protein deficiency).
+3. Face expression & fatigue: Check if the child/patient looks highly exhausted, lethargic, weak, or has signs of severe lack of sleep (wajah tampak lelah/sayu/kurang tidur).
+
+Provide your final analysis in a detailed, clear 2-sentence clinical verdict in Indonesian, starting exactly with "Wajah: ". Be highly specific about what you observe.`;
     }
 
     let result = '';
@@ -148,12 +172,55 @@ export async function analyzeImageOnline(imageUri: string | null, type: 'eyes' |
   }
 }
 
+async function fetchDeepSeek(prompt: string): Promise<string> {
+  console.log("[onlineRunner] Attempting DeepSeek API call...");
+  const response = await fetch('https://api.deepseek.com/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: 'deepseek-chat',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.3
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData?.error?.message || `HTTP ${response.status}`);
+  }
+
+  const resJson = await response.json();
+  const text = resJson.choices?.[0]?.message?.content;
+  if (text) {
+    return text.trim();
+  }
+  throw new Error("No response content from DeepSeek");
+}
+
 export async function generateQuestionsOnline(patientName: string, ageYears: number, ageMonths: number): Promise<string[]> {
-  const prompt = `Hasilkan 4 pertanyaan kuesioner medis singkat (Yes/No) untuk menskrining gejala kurang gizi, anemia, stunting, atau masalah tumbuh kembang pada pasien bernama "${patientName}" berusia ${ageYears} tahun ${ageMonths} bulan.
+  const prompt = `Hasikan 4 pertanyaan kuesioner medis singkat (Yes/No) untuk menskrining gejala kurang gizi, anemia, stunting, atau masalah tumbuh kembang pada pasien bernama "${patientName}" berusia ${ageYears} tahun ${ageMonths} bulan.
 Pertanyaan harus relevan dengan usia tersebut dan ditulis dalam Bahasa Indonesia yang sopan dan mudah dipahami orang tua.
 Format keluaran HARUS berupa JSON array string sederhana berisi tepat 4 pertanyaan teks saja, contoh:
 ["Pertanyaan 1...", "Pertanyaan 2...", "Pertanyaan 3...", "Pertanyaan 4..."]
 Jangan sertakan kata pengantar, penjelasan, atau markdown selain format JSON array tersebut.`;
+
+  // Try DeepSeek first
+  try {
+    const reply = await fetchDeepSeek(prompt);
+    const cleanReply = reply.replace(/```json/gi, '').replace(/```/g, '').trim();
+    const parsed = JSON.parse(cleanReply);
+    if (Array.isArray(parsed) && parsed.length === 4) {
+      console.log("[onlineRunner] Custom questions generated successfully using DeepSeek.");
+      return parsed;
+    }
+    throw new Error("Invalid array size from DeepSeek");
+  } catch (deepseekErr: any) {
+    console.warn("[onlineRunner] DeepSeek question generation failed, falling back to Groq:", deepseekErr.message);
+  }
 
   try {
     console.log(`[onlineRunner] Generating questions from Groq for ${patientName}, age ${ageYears}y ${ageMonths}m...`);
@@ -242,6 +309,20 @@ Contoh format output JSON:
   "level": "sedang"
 }
 Jangan sertakan kata pengantar, penjelasan, atau markdown selain format JSON tersebut.`;
+
+  // Try DeepSeek first
+  try {
+    const reply = await fetchDeepSeek(prompt);
+    const cleanReply = reply.replace(/```json/gi, '').replace(/```/g, '').trim();
+    const parsed = JSON.parse(cleanReply);
+    if (parsed.summary && parsed.recommendation && (parsed.level === 'rendah' || parsed.level === 'sedang' || parsed.level === 'tinggi')) {
+      console.log("[onlineRunner] Integrated diagnosis generated successfully using DeepSeek.");
+      return parsed;
+    }
+    throw new Error("Invalid properties in JSON response from DeepSeek");
+  } catch (deepseekErr: any) {
+    console.warn("[onlineRunner] DeepSeek diagnosis generation failed, falling back to Groq:", deepseekErr.message);
+  }
 
   try {
     console.log(`[onlineRunner] Generating integrated diagnosis from Groq...`);
