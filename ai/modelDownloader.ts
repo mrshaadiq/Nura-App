@@ -22,15 +22,15 @@ export async function isModelDownloaded(): Promise<boolean> {
 
 /**
  * Creates a resumable download task for the ONNX model
- * @param onProgress Callback to report download progress (0.0 to 1.0)
+ * @param onProgress Callback to report download progress (0.0 to 1.0, bytesWritten, bytesTotal)
  */
 export function createModelDownloadResumable(
-  onProgress: (progress: number) => void
+  onProgress: (progress: number, bytesWritten: number, bytesTotal: number) => void
 ): FileSystem.DownloadResumable {
   const callback = (downloadProgress: any) => {
     if (downloadProgress.totalBytesExpectedToWrite > 0) {
       const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
-      onProgress(progress);
+      onProgress(progress, downloadProgress.totalBytesWritten, downloadProgress.totalBytesExpectedToWrite);
     }
   };
 

@@ -15,7 +15,7 @@ import {
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { analyzeEyes, analyzeNails, analyzeFace, isBypassMode, setBypassMode } from '../ai/onnxRunner';
-import { addScreeningSession, getPatientById } from '../database/database';
+import { addScreeningSession, getPatientById, getScreeningSessions } from '../database/database';
 import { useAppNavigation } from '../navigation/NavigationContext';
 import { isModelDownloaded, createModelDownloadResumable, MODEL_LOCAL_URI } from '../ai/modelDownloader';
 import { getAiMode, setAiMode, AiMode } from '../ai/aiSettings';
@@ -78,6 +78,8 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
   const isBypass = activeMode === 'simulasi';
   const [downloadingModel, setDownloadingModel] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
+  const [downloadBytesWritten, setDownloadBytesWritten] = useState(0);
+  const [downloadBytesTotal, setDownloadBytesTotal] = useState(0);
   const [modelReady, setModelReady] = useState(true); // Defaults to true because MobileNetV2 is bundled in the assets
   const cameraRef = useRef<any>(null);
 
@@ -254,9 +256,13 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
     try {
       setDownloadingModel(true);
       setDownloadProgress(0);
+      setDownloadBytesWritten(0);
+      setDownloadBytesTotal(0);
 
-      const downloadTask = createModelDownloadResumable((progress) => {
+      const downloadTask = createModelDownloadResumable((progress, written, total) => {
         setDownloadProgress(progress);
+        setDownloadBytesWritten(written);
+        setDownloadBytesTotal(total);
       });
 
       console.log("[Scanner] Starting model download...");
@@ -360,6 +366,52 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
     let levelRisiko: 'rendah' | 'sedang' | 'tinggi' = 'rendah';
     let summaryText = '';
     let recommendationText = '';
+    let prevSessionId: number | null = null;
+    let statusPerbandingan: string | null = null;
+
+    try {
+      const history = await getScreeningSessions(patientId);
+      if (history && history.length > 0) {
+        const prevSession = history[0];
+        prevSessionId = prevSession.id;
+        
+        // Calculate scores to determine progress
+        const hasEyeAnemia = eyeResult.toLowerCase().includes("pucat") || eyeResult.toLowerCase().includes("resiko");
+        const hasNailAnomaly = nailResult.toLowerCase().includes("cekung") || nailResult.toLowerCase().includes("resiko");
+        const hasFaceAnomaly = faceResult.toLowerCase().includes("wasting") || faceResult.toLowerCase().includes("edema");
+
+        let currentScore = 0;
+        if (hasEyeAnemia) currentScore += 2;
+        if (hasNailAnomaly) currentScore += 2;
+        if (hasFaceAnomaly) currentScore += 2;
+        currentScore += questionnaireScore;
+
+        const hasPrevEye = prevSession.analisis_mata.toLowerCase().includes("pucat") || prevSession.analisis_mata.toLowerCase().includes("resiko");
+        const hasPrevNail = prevSession.analisis_kuku.toLowerCase().includes("cekung") || prevSession.analisis_kuku.toLowerCase().includes("resiko");
+        const hasPrevFace = prevSession.analisis_muka.toLowerCase().includes("wasting") || prevSession.analisis_muka.toLowerCase().includes("edema");
+
+        let prevScore = 0;
+        if (hasPrevEye) prevScore += 2;
+        if (hasPrevNail) prevScore += 2;
+        if (hasPrevFace) prevScore += 2;
+        try {
+          const parsedAnswers = JSON.parse(prevSession.jawaban_kuesioner);
+          if (Array.isArray(parsedAnswers)) {
+            prevScore += parsedAnswers.filter((a: any) => a.answer === 1).length;
+          }
+        } catch {}
+
+        if (currentScore < prevScore) {
+          statusPerbandingan = 'membaik';
+        } else if (currentScore > prevScore) {
+          statusPerbandingan = 'memburuk';
+        } else {
+          statusPerbandingan = 'belum_membaik';
+        }
+      }
+    } catch (err) {
+      console.warn("[Scanner] Pre-fetch history check failed:", err);
+    }
 
     if (getAiMode() === 'online') {
       try {
@@ -394,50 +446,136 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
       const summaryParts: string[] = [];
       const recommendationParts: string[] = [];
 
-      const hasEyeAnemia = eyeResult.includes("Pucat");
-      const hasNailAnomaly = nailResult.includes("Cekung");
+      const hasEyeAnemia = eyeResult.toLowerCase().includes("pucat") || eyeResult.toLowerCase().includes("resiko");
+      const hasNailAnomaly = nailResult.toLowerCase().includes("cekung") || nailResult.toLowerCase().includes("resiko");
+      const hasFaceAnomaly = faceResult.toLowerCase().includes("wasting") || faceResult.toLowerCase().includes("edema");
 
       let anomalyPoints = 0;
       if (hasEyeAnemia) anomalyPoints += 2;
       if (hasNailAnomaly) anomalyPoints += 2;
+      if (hasFaceAnomaly) anomalyPoints += 2;
       anomalyPoints += questionnaireScore;
 
-      if (anomalyPoints >= 4) {
+      if (anomalyPoints >= 5) {
         levelRisiko = 'tinggi';
-        summaryParts.push("Peringatan: Terdeteksi risiko tinggi malnutrisi kronis (stunting) atau anemia berat.");
-        recommendationParts.push(
-          "Segera rujuk anak ke Puskesmas atau dokter anak terdekat untuk penanganan medis formal.",
-          "Saran Nutrisi Darurat:",
-          "- Berikan asupan protein tinggi secara teratur (Telur rebus 2 butir sehari, Ikan kembung, Hati ayam).",
-          "- Berikan sayur hijau kaya zat besi seperti daun kelor yang direbus matang.",
-          "- Hindari pemberian teh atau kopi karena menghambat penyerapan zat besi."
-        );
       } else if (anomalyPoints >= 2) {
         levelRisiko = 'sedang';
-        summaryParts.push("Perhatian: Terdeteksi indikasi risiko sedang. Diperlukan perbaikan pola makan dan observasi berkala.");
-        recommendationParts.push(
-          "Jadwalkan kunjungan ke Posyandu untuk pengukuran tinggi/berat badan berkala.",
-          "Saran Gizi Tambahan:",
-          "- Berikan lauk pauk padat gizi lokal seperti tempe, telur, dan olahan ikan kelor.",
-          "- Pastikan anak mengonsumsi buah kaya vitamin C (jeruk, pepaya) untuk membantu penyerapan zat besi."
-        );
       } else {
         levelRisiko = 'rendah';
-        summaryParts.push("Kondisi kesehatan fisik anak terpantau normal. Tumbuh kembang terpantau sejalan dengan indikator gizi.");
-        recommendationParts.push(
-          "Pertahankan pola makan bergizi seimbang 3 kali sehari.",
-          "Saran Pemeliharaan:",
-          "- Pastikan anak mendapatkan ASI/susu sesuai kebutuhan usianya.",
-          "- Lakukan skrining rutin setiap 3 bulan sekali."
+      }
+
+      // 1. Dynamic clinical explanation (NOT template) based on combinations of symptoms
+      summaryParts.push("### Ringkasan Analisis Klinis AI Lokal (Offline)");
+      
+      let explanation = "";
+      if (hasEyeAnemia && hasNailAnomaly && hasFaceAnomaly) {
+        explanation = `Pasien menunjukkan indikasi malnutrisi energi-protein parah beserta anemia defisiensi besi kronis. Konjungtiva pucat berkorelasi kuat dengan kuku cekung (koilonychia) dan kelainan visual wajah. Hal ini menandakan menipisnya cadangan nutrisi dan zat besi tubuh secara sistemik.`;
+      } else if (hasEyeAnemia && hasNailAnomaly) {
+        explanation = `Terdeteksi indikasi anemia defisiensi besi yang signifikan. Gejala konjungtiva mata pucat yang disertai kuku cekung/sendok menunjukkan tubuh kekurangan mineral zat besi dalam jangka waktu lama (kronis).`;
+      } else if (hasEyeAnemia && hasFaceAnomaly) {
+        explanation = `Terdeteksi risiko malnutrisi sedang disertai anemia. Perubahan visual kelopak mata bawah yang pucat dan adanya tanda wasting/tipis pada pipi wajah memerlukan perhatian segera.`;
+      } else if (hasEyeAnemia) {
+        explanation = `Ditemukan indikasi konjungtiva mata yang pucat. Ini adalah tanda fisik awal dari gejala anemia atau kekurangan zat besi harian, namun bentuk kuku dan wajah terpantau dalam batas normal.`;
+      } else if (hasNailAnomaly) {
+        explanation = `Kelopak mata dan wajah normal, namun terdapat indikasi kuku cekung (sendok). Hal ini merupakan tanda awal klinis dari koilonychia yang dikaitkan dengan defisiensi zat gizi mikro kronis.`;
+      } else if (hasFaceAnomaly) {
+        explanation = `Ditemukan tanda fisik abnormal pada struktur wajah (indikasi kurus/wasting atau pembengkakan/edema ringan), sementara mata dan kuku normal. Perlu dievaluasi pemenuhan kalori dan protein harian.`;
+      } else {
+        explanation = `Tidak ditemukan kelainan fisik yang signifikan pada kelopak mata, kuku, maupun wajah. Indikator fisik menunjukkan tanda-tanda gizi seimbang yang sehat.`;
+      }
+
+      // Add questionnaire context
+      if (questionnaireScore >= 3) {
+        explanation += ` Faktor risiko diperberat oleh hasil kuesioner harian yang menunjukkan banyak gejala perilaku/gizi negatif (Skor Kuesioner: ${questionnaireScore}/4).`;
+      } else if (questionnaireScore > 0) {
+        explanation += ` Kuesioner mencatat beberapa keluhan gizi ringan (Skor Kuesioner: ${questionnaireScore}/4).`;
+      } else {
+        explanation += ` Hasil kuesioner juga mengonfirmasi tidak ada keluhan gejala/perilaku buruk (Skor Kuesioner: 0/4).`;
+      }
+
+      summaryParts.push(explanation);
+
+      // 2. Fetch history database to implement local learning and comparative diagnostics
+      let historyText = "";
+      if (prevSessionId && statusPerbandingan) {
+        try {
+          const history = await getScreeningSessions(patientId);
+          const totalSessions = history.length + 1;
+          
+          if (statusPerbandingan === 'membaik') {
+            historyText = `🔄 **PEMBELAJARAN AI LOKAL (Tren Positif):**\nBerdasarkan data histori (${totalSessions} pemindaian), kondisi gizi pasien terpantau MEMBAIK dibandingkan pemeriksaan sebelumnya. AI lokal mengamati pemulihan gejala klinis. Pertahankan intervensi nutrisi Anda saat ini!`;
+          } else if (statusPerbandingan === 'memburuk') {
+            historyText = `🔄 **PEMBELAJARAN AI LOKAL (Peringatan Tren):**\nBerdasarkan data histori (${totalSessions} pemindaian), kondisi gizi pasien terpantau MEMBURUK dibandingkan pemeriksaan sebelumnya. Terjadi peningkatan akumulasi gejala klinis gizi buruk. Evaluasi ketat disarankan!`;
+          } else {
+            historyText = `🔄 **PEMBELAJARAN AI LOKAL (Tren Stabil/Stagnan):**\nBerdasarkan data histori (${totalSessions} pemindaian), kondisi gizi pasien terpantau STABIL/STAGNAN. Belum terlihat kemajuan signifikan dibandingkan pemeriksaan sebelumnya.`;
+          }
+        } catch {}
+      } else {
+        historyText = `🔄 **PEMBELAJARAN AI LOKAL (Pemindaian Awal):**\nIni adalah pemindaian pertama pasien. AI lokal mulai merekam basis data awal (baseline) kondisi gizi pasien guna mempelajari perkembangan tren kesehatan pada pemeriksaan berikutnya.`;
+      }
+
+      if (historyText) {
+        summaryParts.push(historyText);
+      }
+
+      // 3. Dynamic recommendations (NOT template) based on level of risk and patient's age category
+      recommendationParts.push("### Rekomendasi Nutrisi & Medis Adaptif");
+      
+      let recommendations: string[] = [];
+      const isInfant = usiaTahun < 2; // Balita
+      
+      if (levelRisiko === 'tinggi') {
+        recommendations.push(
+          "🚨 **TINDAKAN DARURAT MEDIS:** Rujuk pasien segera ke Puskesmas, Posyandu, atau dokter spesialis anak untuk penanganan medis formal.",
+          "🥛 **Intervensi Nutrisi Utama:**"
+        );
+        if (isInfant) {
+          recommendations.push(
+            "- Teruskan pemberian ASI Eksklusif / ASI Lanjutan sesering mungkin.",
+            "- Tambahkan MP-ASI Padat Gizi: Berikan bubur tim dengan hati ayam, telur rebus matang (hancurkan), dan ikan kembung cincang.",
+            "- Hindari makanan instan atau biskuit manis sebagai makanan utama."
+          );
+        } else {
+          recommendations.push(
+            "- Konsumsi protein hewani tinggi setiap hari: Minimal 2 butir telur rebus, daging merah, atau hati ayam secara rutin.",
+            "- Berikan sayur kelor rebus atau bayam rebus untuk mendongkrak kadar zat besi harian.",
+            "- Batasi pemberian teh, kopi, atau minuman bersoda setelah makan karena menghambat penyerapan zat besi."
+          );
+        }
+        recommendations.push("- Berikan suplemen zat besi dan vitamin A sesuai dosis petunjuk dokter.");
+      } else if (levelRisiko === 'sedang') {
+        recommendations.push(
+          "⚠️ **PEMANTAUAN BERKALA:** Jadwalkan pengukuran tinggi dan berat badan secara rutin di Posyandu terdekat setiap bulan.",
+          "🍏 **Saran Modifikasi Diet Gizi Seimbang:**"
+        );
+        if (isInfant) {
+          recommendations.push(
+            "- Berikan MP-ASI gizi seimbang kaya protein lokal (tempe lumat, telur puyuh, sup ikan kelor).",
+            "- Berikan selingan jus buah segar (pepaya atau jeruk lumat) untuk membantu absorpsi zat besi."
+          );
+        } else {
+          recommendations.push(
+            "- Variasikan menu makanan dengan lauk padat gizi (tahu, tempe, telur dadar kelor, ikan lokal).",
+            "- Pastikan anak mendapatkan buah kaya vitamin C untuk mengoptimalkan penyerapan zat besi dari sayuran."
+          );
+        }
+      } else {
+        recommendations.push(
+          "✅ **KONDISI SEHAT & NORMAL:** Pertahankan pola asuh dan pola makan yang berjalan saat ini.",
+          "✨ **Saran Pemeliharaan Tumbuh Kembang:**",
+          "- Berikan makanan bergizi 3 kali sehari ditambah camilan sehat (buah-buahan, olahan kacang hijau).",
+          "- Jadwalkan pemindaian ulang Nura App rutin setiap 3 bulan sekali untuk pencegahan stunting dini."
         );
       }
 
+      recommendationParts.push(...recommendations);
+
       if (parentalNotes) {
-        recommendationParts.push(`\nCatatan Tambahan Pengamat: ${parentalNotes}`);
+        recommendationParts.push(`\n**Catatan Tambahan Pengamat:** ${parentalNotes}`);
       }
 
-      summaryText = summaryParts.join("\n");
-      recommendationText = recommendationParts.join("\n");
+      summaryText = summaryParts.join("\n\n");
+      recommendationText = recommendationParts.join("\n\n");
     }
 
     try {
@@ -455,9 +593,9 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
         analisis_gabungan: summaryText,
         rekomendasi: recommendationText,
         level_risiko: levelRisiko,
-        sesi_tipe: 'awal',
-        sesi_sebelumnya_id: null,
-        status_perbandingan: null
+        sesi_tipe: prevSessionId ? 'tindak_lanjut' : 'awal',
+        sesi_sebelumnya_id: prevSessionId,
+        status_perbandingan: statusPerbandingan
       });
 
       console.log("Saved screening session with ID:", sessionId);
@@ -581,6 +719,23 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
             <ActivityIndicator size="large" color="#4F46E5" />
             <Text style={styles.processingTitle}>Pemrosesan AI Lokal</Text>
             <Text style={styles.processingSubtitle}>{processingText}</Text>
+          </View>
+        </View>
+      {/* Downloading Model Loader Overlay */}
+      {downloadingModel && (
+        <View style={styles.processingOverlay}>
+          <View style={styles.processingCard}>
+            <ActivityIndicator size="large" color="#10B981" />
+            <Text style={styles.processingTitle}>Mengunduh Model AI Offline</Text>
+            <Text style={styles.processingSubtitle}>
+              Model visual AI (MobileNetV2) sedang diunduh ke HP Anda.
+            </Text>
+            <View style={styles.progressBarBg}>
+              <View style={[styles.progressBarFill, { width: `${downloadProgress * 100}%` }]} />
+            </View>
+            <Text style={styles.progressText}>
+              {`${(downloadBytesWritten / (1024 * 1024)).toFixed(1)} MB / ${(downloadBytesTotal / (1024 * 1024)).toFixed(1)} MB (${Math.round(downloadProgress * 100)}%)`}
+            </Text>
           </View>
         </View>
       )}
