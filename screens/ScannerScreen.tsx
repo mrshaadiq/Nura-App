@@ -182,8 +182,8 @@ export default function ScannerScreen({ params, isActive }: ScannerScreenProps) 
 
       console.log("[Scanner] Model sideloaded successfully to:", MODEL_LOCAL_URI);
       setModelReady(true);
-      setBypassMode(false);
-      setIsBypass(false);
+      setAiMode('offline');
+      setActiveMode('offline');
       Alert.alert("Selesai", "Model AI berhasil diimpor dan siap digunakan secara offline!");
     } catch (e: any) {
       console.error("[Scanner] Sideload failed:", e);
