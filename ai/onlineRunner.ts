@@ -3,7 +3,7 @@ import * as FileSystem from 'expo-file-system';
 import { GEMINI_API_KEY, GROQ_API_KEY } from './env';
 const GEMINI_MODEL = 'gemini-2.0-flash';
 const GROQ_MODEL = 'llama-3.3-70b-versatile';
-const GROQ_VISION_MODEL = 'llama-3.2-90b-vision-preview';
+const GROQ_VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
 
 async function fetchGemini(base64Image: string, prompt: string): Promise<string> {
   const models = ['gemini-2.0-flash', 'gemini-1.5-flash'];
@@ -51,44 +51,53 @@ async function fetchGemini(base64Image: string, prompt: string): Promise<string>
 }
 
 async function fetchGroqVision(base64Image: string, prompt: string): Promise<string> {
-  try {
-    console.log(`[onlineRunner] Attempting Groq Vision fallback using ${GROQ_VISION_MODEL}...`);
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${GROQ_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: GROQ_VISION_MODEL,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:image/jpeg;base64,${base64Image}`
+  const models = [GROQ_VISION_MODEL, 'qwen/qwen3.6-27b'];
+  let lastError = '';
+
+  for (const model of models) {
+    try {
+      console.log(`[onlineRunner] Attempting Groq Vision fallback using model: ${model}...`);
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${GROQ_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: prompt },
+                {
+                  type: 'image_url',
+                  image_url: {
+                    url: `data:image/jpeg;base64,${base64Image}`
+                  }
                 }
-              }
-            ]
-          }
-        ]
-      })
-    });
+              ]
+            }
+          ]
+        })
+      });
 
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err?.error?.message || `HTTP ${response.status}`);
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err?.error?.message || `HTTP ${response.status}`);
+      }
+
+      const resJson = await response.json();
+      const content = (resJson.choices?.[0]?.message?.content || '').trim();
+      if (content) {
+        return content;
+      }
+    } catch (e: any) {
+      console.warn(`[onlineRunner] Groq Vision model ${model} failed:`, e.message);
+      lastError = e.message;
     }
-
-    const resJson = await response.json();
-    return (resJson.choices?.[0]?.message?.content || '').trim();
-  } catch (e: any) {
-    console.error(`[onlineRunner] Groq Vision failed:`, e.message);
-    throw e;
   }
+  throw new Error(`All Groq Vision models failed: ${lastError}`);
 }
 
 export async function analyzeImageOnline(imageUri: string | null, type: 'eyes' | 'nails' | 'face'): Promise<string> {
