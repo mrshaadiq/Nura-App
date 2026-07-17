@@ -39,3 +39,10 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# JDK & ONNX Models
+.jdk/
+*.onnx
+
+# Local secrets
+ai/env.ts

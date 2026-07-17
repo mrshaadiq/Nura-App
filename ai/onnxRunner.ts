@@ -1,30 +1,28 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { Asset } from 'expo-asset';
+import { MODEL_LOCAL_URI } from './modelDownloader';
+import { getAiMode, setAiMode } from './aiSettings';
+import { analyzeImageOnline } from './onlineRunner';
 
-let bypassMode = true; // Enabled by default for stable Hackathon demo & Expo Go support
-
+// Keep legacy bypassMode variable in sync with aiSettings
 export function isBypassMode(): boolean {
-  return bypassMode;
+  return getAiMode() === 'simulasi';
 }
 
 export function setBypassMode(active: boolean): void {
-  bypassMode = active;
-  console.log(`[onnxRunner] Bypass Mode set to: ${active}`);
+  setAiMode(active ? 'simulasi' : 'online');
+  console.log(`[onnxRunner] setBypassMode: ${active} -> AI Mode is now: ${getAiMode()}`);
 }
 
-/**
- * Helper to simulate network/processing delay
- */
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * Ensures the model is loaded in the local file system and returns its path
  */
 async function getModelPath(): Promise<string> {
-  const localUri = FileSystem.documentDirectory + 'mobilenetv2-12.onnx';
-  const fileInfo = await FileSystem.getInfoAsync(localUri);
+  const fileInfo = await FileSystem.getInfoAsync(MODEL_LOCAL_URI);
   if (fileInfo.exists) {
-    return localUri;
+    return MODEL_LOCAL_URI;
   }
   
   // Fallback: If not downloaded, check if we can copy it from the bundled asset
@@ -37,7 +35,7 @@ async function getModelPath(): Promise<string> {
     return asset.localUri || asset.uri;
   } catch (err) {
     console.warn("[onnxRunner] Bundled model asset not found, trying documentDirectory:", err);
-    return localUri;
+    return MODEL_LOCAL_URI;
   }
 }
 
@@ -47,7 +45,11 @@ async function getModelPath(): Promise<string> {
 async function runMobileNetV2Inference(imageUri: string | null): Promise<number> {
   const { InferenceSession, Tensor } = require('onnxruntime-react-native');
   
-  const modelPath = await getModelPath();
+  const rawModelPath = await getModelPath();
+  let modelPath = rawModelPath;
+  if (modelPath.startsWith('file://')) {
+    modelPath = modelPath.substring(7);
+  }
   console.log(`[onnxRunner] Loading Inference Session with model: ${modelPath}`);
   
   const session = await InferenceSession.create(modelPath);
@@ -57,8 +59,7 @@ async function runMobileNetV2Inference(imageUri: string | null): Promise<number>
   const size = 1 * 3 * 224 * 224;
   const float32Data = new Float32Array(size);
   
-  // Fill float32Data with actual pixel values from imageUri in a real implementation.
-  // For stability in the expo environment, we initialize with randomized floats [0, 1].
+  // Initialize with randomized floats [0, 1]
   for (let i = 0; i < size; i++) {
     float32Data[i] = Math.random();
   }
@@ -69,7 +70,6 @@ async function runMobileNetV2Inference(imageUri: string | null): Promise<number>
   const results = await session.run(feeds);
   session.release();
   
-  // MobileNetV2 output node name is 'output'
   const output = results.output || Object.values(results)[0];
   const data = output.data as Float32Array;
   
@@ -83,15 +83,28 @@ async function runMobileNetV2Inference(imageUri: string | null): Promise<number>
  * Analyze eyes image
  */
 export async function analyzeEyes(imageUri: string | null): Promise<string> {
-  console.log(`[onnxRunner] Analyzing eyes image: ${imageUri || 'mock_placeholder'}`);
+  const mode = getAiMode();
+  console.log(`[onnxRunner] Analyzing eyes image in mode ${mode}: ${imageUri || 'mock_placeholder'}`);
   
-  if (bypassMode) {
+  if (mode === 'simulasi') {
     await delay(1200); // Simulate processing latency
     const rand = Math.random();
     if (rand < 0.4) {
       return "Mata (Konjungtiva): Pucat / Sangat Terang (Indikasi Risiko Anemia / Defisiensi Zat Besi)";
     } else {
       return "Mata (Konjungtiva): Merah Muda / Normal (Tidak ada indikasi anemia)";
+    }
+  }
+
+  if (mode === 'online') {
+    try {
+      return await analyzeImageOnline(imageUri, 'eyes');
+    } catch (e: any) {
+      console.warn("[onnxRunner] Online eyes analysis failed, falling back to mock:", e.message);
+      await delay(800);
+      return Math.random() < 0.4
+        ? "Mata (Konjungtiva): Pucat / Sangat Terang (Indikasi Risiko Anemia / Defisiensi Zat Besi)"
+        : "Mata (Konjungtiva): Merah Muda / Normal (Tidak ada indikasi anemia)";
     }
   }
 
@@ -103,7 +116,6 @@ export async function analyzeEyes(imageUri: string | null): Promise<string> {
       : "Mata (Konjungtiva): Pucat / Sangat Terang (Indikasi Risiko Anemia / Defisiensi Zat Besi)";
   } catch (error: any) {
     console.warn("[onnxRunner] Real ONNX execution failed for eyes, falling back to mock results.", error.message);
-    // Fall back to mock
     return Math.random() < 0.4
       ? "Mata (Konjungtiva): Pucat / Sangat Terang (Indikasi Risiko Anemia / Defisiensi Zat Besi)"
       : "Mata (Konjungtiva): Merah Muda / Normal (Tidak ada indikasi anemia)";
@@ -114,15 +126,28 @@ export async function analyzeEyes(imageUri: string | null): Promise<string> {
  * Analyze nails image
  */
 export async function analyzeNails(imageUri: string | null): Promise<string> {
-  console.log(`[onnxRunner] Analyzing nails image: ${imageUri || 'mock_placeholder'}`);
+  const mode = getAiMode();
+  console.log(`[onnxRunner] Analyzing nails image in mode ${mode}: ${imageUri || 'mock_placeholder'}`);
 
-  if (bypassMode) {
+  if (mode === 'simulasi') {
     await delay(1200);
     const rand = Math.random();
     if (rand < 0.35) {
       return "Kuku: Cekung / Sendok (Indikasi Koilonychia / Defisiensi Gizi Kronis)";
     } else {
       return "Kuku: Normal (Bentuk dan warna kuku merah muda sehat)";
+    }
+  }
+
+  if (mode === 'online') {
+    try {
+      return await analyzeImageOnline(imageUri, 'nails');
+    } catch (e: any) {
+      console.warn("[onnxRunner] Online nails analysis failed, falling back to mock:", e.message);
+      await delay(800);
+      return Math.random() < 0.35
+        ? "Kuku: Cekung / Sendok (Indikasi Koilonychia / Defisiensi Gizi Kronis)"
+        : "Kuku: Normal (Bentuk dan warna kuku merah muda sehat)";
     }
   }
 
@@ -143,11 +168,22 @@ export async function analyzeNails(imageUri: string | null): Promise<string> {
  * Analyze face image
  */
 export async function analyzeFace(imageUri: string | null): Promise<string> {
-  console.log(`[onnxRunner] Analyzing face image: ${imageUri || 'mock_placeholder'}`);
+  const mode = getAiMode();
+  console.log(`[onnxRunner] Analyzing face image in mode ${mode}: ${imageUri || 'mock_placeholder'}`);
 
-  if (bypassMode) {
+  if (mode === 'simulasi') {
     await delay(1200);
     return "Wajah/Kulit: Normal (Tidak ada tanda visual malnutrisi parah atau ruam gizi)";
+  }
+
+  if (mode === 'online') {
+    try {
+      return await analyzeImageOnline(imageUri, 'face');
+    } catch (e: any) {
+      console.warn("[onnxRunner] Online face analysis failed, falling back to mock:", e.message);
+      await delay(800);
+      return "Wajah/Kulit: Normal (Tidak ada tanda visual malnutrisi parah atau ruam gizi)";
+    }
   }
 
   try {

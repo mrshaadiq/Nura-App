@@ -1,0 +1,90 @@
+# Implementation Plan: Offline-First Local AI Mental Health & Nutritional Screening (React Native)
+
+This plan details the steps to set up and build a fully offline-first, local AI-powered mobile application in **React Native (using Expo)** based on the [`react_native_offline_ai_blueprint.md`](file:///c:/Users/kingh/OneDrive/Documents/giziku/react_native_offline_ai_blueprint.md).
+
+The app will run completely offline, with no backend or internet connection required, using local SQLite storage, on-device AI inference simulation (with direct support for ONNX Runtime Mobile), camera captures for physical checks (face, eyes, nails), dynamic questionnaires based on patient age, and local PDF report generation.
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Expo Go vs. Development Builds**:
+> Native libraries like `@onnxruntime/react-native` and `expo-sqlite` (new version) require custom native code. While we will write the code to support `@onnxruntime/react-native`, we will build a **dynamic fallback simulation** so that the application runs fully and beautifully inside the standard **Expo Go** environment without crashing. To run with the real ONNX execution provider, you will need to run `npx expo prebuild` and compile the app locally.
+> We recommend starting with Expo Go and using our simulation engine to test the full E2E flow.
+
+---
+
+## Proposed Changes
+
+### Project Initialization & Configuration
+
+#### [NEW] [package.json](file:///c:/Users/kingh/OneDrive/Documents/giziku/package.json)
+We will initialize the project using Expo SDK. The main dependencies will include:
+* `expo-sqlite` (Local SQLite database)
+* `expo-image-manipulator` (GPU-accelerated image scaling and compression)
+* `expo-print` & `expo-sharing` (On-device PDF generation and sharing)
+* `expo-camera` (Camera capture UI)
+* `@onnxruntime/react-native` (For local ONNX inference, wrapped in fallback logic)
+* `lucide-react-native` (Premium UI icons)
+
+---
+
+### Database Layer (SQLite)
+
+#### [NEW] [src/database/db.ts](file:///c:/Users/kingh/OneDrive/Documents/giziku/src/database/db.ts)
+* Implementation of database schemas for `patients` and `screening_sessions` as described in Section 3 of the blueprint.
+* Methods for creating patients, retrieving patient history, checking previous sessions for comparisons (membaik, memburuk, belum membaik), and saving session results.
+
+---
+
+### Business Logic & Inference Layer
+
+#### [NEW] [src/utils/age.ts](file:///c:/Users/kingh/OneDrive/Documents/giziku/src/utils/age.ts)
+* High-precision age calculation logic in years and months.
+* Rules for selecting questionnaires:
+  * 0 - 2 Years: Balita (Toddler)
+  * 3 - 5 Years: Prasekolah (Preschool)
+  * 6 - 12 Years: Anak Sekolah (School Age)
+  * >12 Years: Remaja / Dewasa (Teen/Adult)
+
+#### [NEW] [src/services/ai.ts](file:///c:/Users/kingh/OneDrive/Documents/giziku/src/services/ai.ts)
+* Integrates `@onnxruntime/react-native` for loading ONNX models.
+* Implements a **robust fallback engine** that runs heuristic and questionnaire-based local diagnosis when the ONNX native runtime is unavailable (e.g., when testing in Expo Go) or when no model file is found.
+* Translates image outputs to find nutritional or psychological visual signs (like conjunctiva pallor, fatigue lines, nail health).
+
+---
+
+### User Interface (Expo Router & Components)
+
+We will build a high-fidelity, premium interface matching the "Rich Aesthetics" guidelines (sleek dark/light theme, custom glassmorphism components, rich status badges, and smooth transition states):
+
+#### [NEW] [app/_layout.tsx](file:///c:/Users/kingh/OneDrive/Documents/giziku/app/_layout.tsx)
+* Main navigation wrapper using Expo Router with smooth screen transitions and theme provider.
+
+#### [NEW] [app/index.tsx](file:///c:/Users/kingh/OneDrive/Documents/giziku/app/index.tsx)
+* **Dashboard Screen**: Shows quick stats, recent screenings, patient search, and a prominent "Mulai Screening Baru" (Start New Screening) button.
+
+#### [NEW] [app/register-patient.tsx](file:///c:/Users/kingh/OneDrive/Documents/giziku/app/register-patient.tsx)
+* **Patient Registration Screen**: Collects Name, Date of Birth (DOB), and Gender. Uses precise age calculation to auto-select the screening questionnaire level.
+
+#### [NEW] [app/screening.tsx](file:///c:/Users/kingh/OneDrive/Documents/giziku/app/screening.tsx)
+* **Multi-Step Screening Process**:
+  1. **Physical Capture Step**: Camera interface to capture Face, Eyes, and Nails. Includes GPU-accelerated compression.
+  2. **Questionnaire Step**: Dynamic questionnaire rendering based on the patient's calculated age.
+  3. **Analysis Step**: Interactive loading state ("Memproses analisis lokal...") and results display.
+  4. **Report & History Step**: Save results to SQLite, compare with past sessions, preview PDF, and share.
+
+#### [NEW] [src/utils/pdf.ts](file:///c:/Users/kingh/OneDrive/Documents/giziku/src/utils/pdf.ts)
+* Clinical-grade PDF compiler that runs locally, generating a beautiful HTML-based report page with risk level badges, detailed analysis, and recommendations.
+
+---
+
+## Verification Plan
+
+### Manual Verification
+1. **Bootstrap & Start**: Run `npx expo start` to launch Expo.
+2. **Register Patient**: Verify that entering DOB dynamically calculates the correct age and selects the appropriate questionnaire.
+3. **Capture Photos**: Test camera access, mock photo inputs, and check image compression.
+4. **Offline Inference**: Validate that the diagnosis engine processes the inputs and updates the SQLite database.
+5. **PDF Report & Share**: Generate a PDF report and trigger the native sharing panel.

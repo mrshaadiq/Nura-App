@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import { getPatientById, Patient } from '../database/database';
 import { useAppNavigation } from '../navigation/NavigationContext';
+import { getAiMode } from '../ai/aiSettings';
+import { generateQuestionsOnline } from '../ai/onlineRunner';
 
 interface QuestionnaireScreenProps {
   params: { patientId: number };
@@ -103,6 +105,17 @@ export default function QuestionnaireScreen({ params, isActive }: QuestionnaireS
         }
 
         setAgeCategory(cat);
+
+        if (getAiMode() === 'online') {
+          try {
+            console.log("[Questionnaire] Online mode active. Fetching custom questions from AI...");
+            const aiQuestions = await generateQuestionsOnline(p.nama_pasien, years, months);
+            qList = aiQuestions;
+          } catch (e: any) {
+            console.warn("[Questionnaire] Failed to fetch custom AI questions, falling back to static questions.", e.message);
+          }
+        }
+
         setQuestions(
           qList.map((qText, idx) => ({
             id: idx + 1,
@@ -363,8 +376,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#DEF7EC',
   },
   optionYesSelected: {
-    borderColor: '#EF4444',
-    backgroundColor: '#FEE2E2',
+    borderColor: '#10B981',
+    backgroundColor: '#DEF7EC',
   },
   optionBtnText: {
     fontSize: 13,
@@ -375,7 +388,7 @@ const styles = StyleSheet.create({
     color: '#03543F',
   },
   optionTextYesSelected: {
-    color: '#991B1B',
+    color: '#03543F',
   },
   notesContainer: {
     backgroundColor: '#FFFFFF',

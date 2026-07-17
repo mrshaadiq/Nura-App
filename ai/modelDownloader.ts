@@ -4,8 +4,8 @@ import * as FileSystem from 'expo-file-system/legacy';
 export const MODEL_FILE_NAME = 'mobilenetv2-12.onnx';
 export const MODEL_LOCAL_URI = FileSystem.documentDirectory + MODEL_FILE_NAME;
 
-// Remote URL to download the model from (MobileNetV2 classification model)
-export const MODEL_REMOTE_URL = 'https://github.com/onnx/models/raw/main/validated/vision/classification/mobilenet/model/mobilenetv2-12.onnx';
+// Remote URL to download the model from (MobileNetV2 vision model)
+export const MODEL_REMOTE_URL = 'https://huggingface.co/onnxmodelzoo/mobilenetv2-12/resolve/main/mobilenetv2-12.onnx';
 
 /**
  * Check if the model file is already downloaded and present in local storage
